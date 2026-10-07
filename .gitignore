@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Build & Dist
+build/
+dist/
+*.egg-info/
+
+# Environments
+venv/
+.venv/
+env/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+
+# Application Config & Log files
+.ocr_pdf_compressor_config.json
+*.log
+
+# Datasets & Temp Files
+dataset/
+scratch/

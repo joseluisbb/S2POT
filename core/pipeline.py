@@ -135,7 +135,7 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
                 h_html = ocr_pack.get("hocr_html", "")
                 full_hocr_pages.append(h_html)
 
-            _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
+            _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
 
             pages_data.append({
                 "page_num": p_idx + 1,
@@ -191,7 +191,7 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
             if ocr_pack["hocr_html"]:
                 full_hocr_pages.append(ocr_pack["hocr_html"])
 
-            _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
+            _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
 
             pages_data.append({
                 "page_num": p_idx + 1,
@@ -236,7 +236,7 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
         if ocr_pack["hocr_html"]:
             full_hocr_pages.append(ocr_pack["hocr_html"])
 
-        _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality])
+        _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
 
         pages_data.append({
             "page_num": 1,

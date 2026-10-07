@@ -3,6 +3,7 @@ import glob
 import threading
 import sys
 import shutil
+import subprocess
 from datetime import datetime
 import customtkinter as ctk
 import tkinter as tk
@@ -233,7 +234,17 @@ class S2POTApp(ctk.CTk):
         self.chk_sync_paths.pack(anchor="w", padx=12, pady=(2, 2))
 
         self.lbl_badge = ctk.CTkLabel(self.box1, text="Ficheiros encontrados: 0", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3498db")
-        self.lbl_badge.pack(anchor="w", padx=12, pady=(2, 4))
+        self.lbl_badge.pack(anchor="w", padx=12, pady=(2, 2))
+
+        self.btn_open_s2pit = ctk.CTkButton(
+            self.box1,
+            text=self._tr("btn_open_s2pit"),
+            fg_color="#8e44ad",
+            hover_color="#732d91",
+            height=26,
+            command=self._open_s2pit_preview
+        )
+        self.btn_open_s2pit.pack(fill="x", padx=10, pady=(2, 6))
 
         fmt_frame = ctk.CTkFrame(self.box1, fg_color=("gray95", "#242424"), corner_radius=6)
         fmt_frame.pack(fill="x", padx=10, pady=(0, 8))
@@ -823,7 +834,21 @@ class S2POTApp(ctk.CTk):
             files.extend(glob.glob(os.path.join(in_path, pattern.upper())))
 
         self.found_files = sorted(list(set(files)))
-        self.lbl_badge.configure(text=self._tr("found_files_badge").format(count=len(self.found_files)))
+
+        # Check for s2pot_tuning.json badge
+        tuning_file = os.path.join(in_path, "s2pot_tuning.json")
+        badge_text = self._tr("found_files_badge").format(count=len(self.found_files))
+        if os.path.exists(tuning_file):
+            badge_text += f"  |  {self._tr('s2pit_badge_active')}"
+            self.lbl_badge.configure(text=badge_text, text_color="#2ecc71")
+        else:
+            self.lbl_badge.configure(text=badge_text, text_color="#3498db")
+
+    def _open_s2pit_preview(self):
+        in_path = self.input_entry.get().strip()
+        s2pit_script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "s2pit_main.py")
+        if os.path.exists(s2pit_script):
+            subprocess.Popen([sys.executable, s2pit_script, in_path])
 
         self.tree.delete(*self.tree.get_children())
         self.file_items = {}

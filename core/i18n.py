@@ -870,6 +870,142 @@ TRANSLATIONS = {
         "zh": "取消",
         "ru": "Отмена",
         "ar": "إلغاء"
+    },
+    # --- S2PIT PREVIEW TOOL TRANSLATIONS ---
+    "s2pit_title": {
+        "pt_PT": "S2PIT — Smart Slim Preview Tool v1.0.0",
+        "en": "S2PIT — Smart Slim Preview Tool v1.0.0",
+        "es": "S2PIT — Smart Slim Preview Tool v1.0.0",
+        "fr": "S2PIT — Smart Slim Preview Tool v1.0.0",
+        "zh": "S2PIT — Smart Slim 预览调优工具 v1.0.0",
+        "ru": "S2PIT — Smart Slim Preview Tool v1.0.0",
+        "ar": "S2PIT — Smart Slim Preview Tool v1.0.0"
+    },
+    "btn_open_s2pit": {
+        "pt_PT": "🔎 Abrir no S2PIT Preview...",
+        "en": "🔎 Open in S2PIT Preview...",
+        "es": "🔎 Abrir en S2PIT Preview...",
+        "fr": "🔎 Ouvrir dans S2PIT Preview...",
+        "zh": "🔎 在 S2PIT 预览中打开...",
+        "ru": "🔎 Открыть в S2PIT Preview...",
+        "ar": "🔎 فتح في معاينة S2PIT..."
+    },
+    "s2pit_badge_active": {
+        "pt_PT": "✓ Regras S2PIT Ativas",
+        "en": "✓ S2PIT Rules Active",
+        "es": "✓ Reglas S2PIT Activas",
+        "fr": "✓ Règles S2PIT actives",
+        "zh": "✓ S2PIT 规则已生效",
+        "ru": "✓ Правила S2PIT активны",
+        "ar": "✓ قواعد S2PIT نشطة"
+    },
+    "s2pit_box_tuning": {
+        "pt_PT": "Ajuste & Tuning de Compressão",
+        "en": "Tuning & Preview Studio",
+        "es": "Estudio de Ajuste y Vista Previa",
+        "fr": "Studio d'ajustement et aperçu",
+        "zh": "调优与预览工作室",
+        "ru": "Студия настройки и просмотра",
+        "ar": "استوديو الضبط والمعاينة"
+    },
+    "color_mode_label": {
+        "pt_PT": "Modo de Cor:",
+        "en": "Color Mode:",
+        "es": "Modo de Color:",
+        "fr": "Mode couleur:",
+        "zh": "颜色模式:",
+        "ru": "Цветовой режим:",
+        "ar": "وضع اللون:"
+    },
+    "color_mode_color": {
+        "pt_PT": "Cor Original",
+        "en": "Original Color",
+        "es": "Color Original",
+        "fr": "Couleur d'origine",
+        "zh": "原始色彩",
+        "ru": "Исходный цвет",
+        "ar": "اللون الأصلي"
+    },
+    "color_mode_grayscale": {
+        "pt_PT": "Escala de Cinzentos",
+        "en": "Grayscale",
+        "es": "Escala de Grises",
+        "fr": "Niveaux de gris",
+        "zh": "灰度模式",
+        "ru": "Оттенки серого",
+        "ar": "تدرج الرمادي"
+    },
+    "color_mode_bw": {
+        "pt_PT": "Preto & Branco (1-bit B&W)",
+        "en": "Black & White (1-bit B&W)",
+        "es": "Blanco y Negro (1-bit)",
+        "fr": "Noir et blanc (1 bit)",
+        "zh": "黑白模式 (1-bit)",
+        "ru": "Черно-белый (1-бит)",
+        "ar": "أبيض وأسود (1-bit)"
+    },
+    "preset_max": {
+        "pt_PT": "Fidelidade Máxima",
+        "en": "Max Fidelity",
+        "es": "Máxima Fidelidad",
+        "fr": "Fidélité maximale",
+        "zh": "最高画质",
+        "ru": "Макс. качество",
+        "ar": "أعلى دقة"
+    },
+    "preset_balanced": {
+        "pt_PT": "Equilibrado",
+        "en": "Balanced",
+        "es": "Equilibrado",
+        "fr": "Équilibré",
+        "zh": "平衡模式",
+        "ru": "Сбалансированный",
+        "ar": "متوازن"
+    },
+    "preset_slim": {
+        "pt_PT": "Web / Email Slim",
+        "en": "Web / Email Slim",
+        "es": "Web / Email Slim",
+        "fr": "Web / Email Slim",
+        "zh": "网络/邮件极小模式",
+        "ru": "Веб/Email Slim",
+        "ar": "ويب / بريد صغبر"
+    },
+    "btn_save_tuning": {
+        "pt_PT": "💾 Gravar Regras na Pasta",
+        "en": "💾 Save Rules to Folder",
+        "es": "💾 Guardar Reglas en Carpeta",
+        "fr": "💾 Enregistrer les règles",
+        "zh": "💾 保存规则至文件夹",
+        "ru": "💾 Сохранить правила",
+        "ar": "💾 حفظ القواعد في المجلد"
+    },
+    "btn_launch_s2pot": {
+        "pt_PT": "🚀 Lançar Processamento S2POT",
+        "en": "🚀 Launch S2POT Processing",
+        "es": "🚀 Iniciar S2POT",
+        "fr": "🚀 Lancer S2POT",
+        "zh": "🚀 启动 S2POT 批处理",
+        "ru": "🚀 Запустить S2POT",
+        "ar": "🚀 تشغيل معالجة S2POT"
+    },
+    "scope_all_batch": {
+        "pt_PT": "Aplicar a Toda a Batch",
+        "en": "Apply to All Batch",
+        "es": "Aplicar a Todo el Lote",
+        "fr": "Appliquer à tout le lot",
+        "zh": "应用于整个批次",
+        "ru": "Применить ко всем",
+        "ar": "تطبيق على الكل"
+    },
+    "scope_this_file": {
+        "pt_PT": "Aplicar Apenas a Este Ficheiro",
+        "en": "Apply Only to This File",
+        "es": "Aplicar Solo a Este Archivo",
+        "fr": "Appliquer uniquement à ce fichier",
+        "zh": "仅应用于当前文件",
+        "ru": "Применить только к этому файлу",
+        "ar": "تطبيق على هذا الملف فقط"
     }
 }
 

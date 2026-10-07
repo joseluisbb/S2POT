@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import pymupdf as fitz
 
-def create_searchable_pdf(pages_data, output_pdf_path, compress_background=False, jpeg_quality=70):
+def create_searchable_pdf(pages_data, output_pdf_path, compress_background=False, jpeg_quality=70, max_downsample_dim=2000):
     """
     Assembles a searchable PDF document from page data with sub-pixel exact text alignment.
     Uses precise font ascender/descender metrics to align invisible text boxes with underlying images.
@@ -32,8 +32,9 @@ def create_searchable_pdf(pages_data, output_pdf_path, compress_background=False
         if compress_background and "bgr_image" in page_info:
             bgr = page_info["bgr_image"]
             if bgr is not None and bgr.size > 0:
-                if max(bgr.shape[:2]) > 2000:
-                    scale = 2000.0 / float(max(bgr.shape[:2]))
+                target_dim = max_downsample_dim or 2000
+                if max(bgr.shape[:2]) > target_dim:
+                    scale = float(target_dim) / float(max(bgr.shape[:2]))
                     bgr = cv2.resize(bgr, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
                 encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), max(30, min(95, jpeg_quality))]
                 _, enc = cv2.imencode('.jpg', bgr, encode_param)

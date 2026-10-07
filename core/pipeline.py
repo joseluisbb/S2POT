@@ -9,6 +9,20 @@ from core.deskew import auto_align_page
 from core.ocr_engine import OCREngine
 from core.pdf_builder import create_searchable_pdf
 from core.data_exporter import export_file_data, export_batch_reports
+from core.tuning_config import load_tuning_config, get_effective_file_tuning
+
+def apply_color_mode(bgr_img, color_mode):
+    if not color_mode or color_mode == "color":
+        return bgr_img
+    if color_mode == "grayscale":
+        gray = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2GRAY)
+        return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    if color_mode in ["monochrome", "bw", "binarized"]:
+        gray = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2GRAY)
+        bw = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 10)
+        return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
+    return bgr_img
+
 
 def is_native_text_quality_good(direct_words):
     """Evaluates if an embedded native PDF text layer is high-quality or contains corrupt/OCR garbage noise."""
@@ -45,6 +59,16 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
     ext = os.path.splitext(file_path)[1].lower()
 
     options = export_options or {}
+    filename = os.path.basename(file_path)
+    input_dir = os.path.dirname(file_path)
+    tuning_cfg = options.get("tuning_config") or load_tuning_config(input_dir)
+    effective_tuning = get_effective_file_tuning(tuning_cfg, filename)
+
+    eff_color_mode = options.get("color_mode", effective_tuning.get("color_mode", "color"))
+    target_dpi = options.get("target_dpi", effective_tuning.get("target_dpi", target_dpi))
+    eff_quality = options.get("pdf_jpeg_quality", options.get("jpeg_quality", effective_tuning.get("jpeg_quality", jpeg_quality)))
+    eff_max_dim = options.get("downsample_max_dim", effective_tuning.get("downsample_max_dim", 2000))
+
     if "pdf_text_strategy" in options:
         pdf_text_strategy = options["pdf_text_strategy"]
 
@@ -83,6 +107,7 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
 
             bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_resampled, enable_deskew=enable_auto_deskew)
             bgr_enhanced = enhance_contrast_lab(bgr_aligned)
+            bgr_enhanced = apply_color_mode(bgr_enhanced, eff_color_mode)
 
             if len(direct_text) > 0 or len(direct_words) > 0:
                 has_orig_text_layer = True
@@ -178,6 +203,7 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
             bgr_resampled = cv2.resize(bgr_full, (target_w, target_h), interpolation=cv2.INTER_AREA)
             bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_resampled, enable_deskew=enable_auto_deskew)
             bgr_enhanced = enhance_contrast_lab(bgr_aligned)
+            bgr_enhanced = apply_color_mode(bgr_enhanced, eff_color_mode)
 
             ocr_pack = ocr_engine.run_ocr_full(bgr_enhanced, page_num=p_idx+1, target_dpi=target_dpi)
             ocr_results = ocr_pack["ocr_results"]
@@ -223,6 +249,7 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
 
         bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_full, enable_deskew=enable_auto_deskew)
         bgr_enhanced = enhance_contrast_lab(bgr_aligned)
+        bgr_enhanced = apply_color_mode(bgr_enhanced, eff_color_mode)
 
         ocr_pack = ocr_engine.run_ocr_full(bgr_enhanced, page_num=1, target_dpi=target_dpi)
         ocr_results = ocr_pack["ocr_results"]
@@ -273,7 +300,7 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
             out_comp_pdf = os.path.join(doc_sub, f"{base_name}_compressed.pdf")
         else:
             out_comp_pdf = os.path.join(output_dir, f"{base_name}_compressed.pdf")
-        create_searchable_pdf(pages_data, out_comp_pdf, compress_background=True, jpeg_quality=options.get("pdf_jpeg_quality", 70))
+        create_searchable_pdf(pages_data, out_comp_pdf, compress_background=True, jpeg_quality=eff_quality, max_downsample_dim=eff_max_dim)
         if not primary_pdf_path:
             primary_pdf_path = out_comp_pdf
 

@@ -462,6 +462,15 @@ TRANSLATIONS = {
         "ru": "Страницы",
         "ar": "الصفحات"
     },
+    "col_img_res": {
+        "pt_PT": "Res. Img.",
+        "en": "Img. Res.",
+        "es": "Res. Img.",
+        "fr": "Rés. Img.",
+        "zh": "图像分辨率",
+        "ru": "Разреш. Изобр.",
+        "ar": "دقة الصورة"
+    },
     "col_chars": {
         "pt_PT": "Caracteres",
         "en": "Chars",

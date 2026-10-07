@@ -467,25 +467,27 @@ class S2POTApp(ctk.CTk):
         style.configure("Treeview.Heading", background="#1f1f1f", foreground="white", font=("Segoe UI", 10, "bold"))
         style.map("Treeview", background=[("selected", "#1f618d")])
 
-        # New Column Order: Filename, Format, Size, Pages, Chars, Status, Time
-        cols = ("Filename", "Format", "Size", "Pages", "Chars", "Status", "Time")
+        # New Column Order: Filename, Format, Size, Pages, ImgRes, Chars, Status, Time
+        cols = ("Filename", "Format", "Size", "Pages", "ImgRes", "Chars", "Status", "Time")
         self.tree = ttk.Treeview(tbl_frame, columns=cols, show="headings", selectmode="extended")
 
         self.tree.heading("Filename", text=self._tr("col_filename"), command=lambda: self._sort_table("Filename"))
         self.tree.heading("Format", text=self._tr("col_format"), command=lambda: self._sort_table("Format"))
         self.tree.heading("Size", text=self._tr("col_size"), command=lambda: self._sort_table("Size"))
         self.tree.heading("Pages", text=self._tr("col_pages"), command=lambda: self._sort_table("Pages"))
+        self.tree.heading("ImgRes", text=self._tr("col_img_res"), command=lambda: self._sort_table("ImgRes"))
         self.tree.heading("Chars", text=self._tr("col_chars"), command=lambda: self._sort_table("Chars"))
         self.tree.heading("Status", text=self._tr("col_status"), command=lambda: self._sort_table("Status"))
         self.tree.heading("Time", text=self._tr("col_time"), command=lambda: self._sort_table("Time"))
 
-        self.tree.column("Filename", width=330, anchor="w")
-        self.tree.column("Format", width=140, anchor="center")
-        self.tree.column("Size", width=95, anchor="e")
-        self.tree.column("Pages", width=75, anchor="center")
-        self.tree.column("Chars", width=95, anchor="e")
-        self.tree.column("Status", width=165, anchor="center")
-        self.tree.column("Time", width=75, anchor="e")
+        self.tree.column("Filename", width=300, anchor="w")
+        self.tree.column("Format", width=130, anchor="center")
+        self.tree.column("Size", width=85, anchor="e")
+        self.tree.column("Pages", width=65, anchor="center")
+        self.tree.column("ImgRes", width=85, anchor="center")
+        self.tree.column("Chars", width=90, anchor="e")
+        self.tree.column("Status", width=150, anchor="center")
+        self.tree.column("Time", width=70, anchor="e")
 
         self.tree.bind("<<TreeviewSelect>>", self._on_table_select)
 
@@ -600,6 +602,7 @@ class S2POTApp(ctk.CTk):
         self.tree.heading("Format", text=self._tr("col_format"))
         self.tree.heading("Size", text=self._tr("col_size"))
         self.tree.heading("Pages", text=self._tr("col_pages"))
+        self.tree.heading("ImgRes", text=self._tr("col_img_res"))
         self.tree.heading("Chars", text=self._tr("col_chars"))
         self.tree.heading("Status", text=self._tr("col_status"))
         self.tree.heading("Time", text=self._tr("col_time"))
@@ -845,16 +848,76 @@ class S2POTApp(ctk.CTk):
                 except Exception:
                     fmt_str = "PDF"
 
-            # New Order: Filename, Format, Size, Pages, Chars, Status, Time
-            item_id = self.tree.insert("", "end", values=(fname, fmt_str, f"{size_mb:.2f} MB", "-", "-", "READY", "-"))
+            # New Order: Filename, Format, Size, Pages, ImgRes, Chars, Status, Time
+            item_id = self.tree.insert("", "end", values=(fname, fmt_str, f"{size_mb:.2f} MB", "-", "-", "-", "READY", "-"))
             self.file_items[f] = item_id
             self.item_to_filepath[item_id] = f
 
         self._on_table_select(None)
         self._check_conditional_controls()
 
+    def _get_file_max_dpi(self, fpath):
+        """Helper to calculate the highest image resolution (DPI) in a document or image file."""
+        ext = os.path.splitext(fpath)[1].lower()
+        max_dpi = 0
+        try:
+            if ext == ".pdf":
+                doc = fitz.open(fpath)
+                for page in doc:
+                    pt_w = page.rect.width
+                    pt_h = page.rect.height
+                    image_list = page.get_images()
+                    if image_list:
+                        for img in image_list:
+                            xref = img[0]
+                            try:
+                                base_img = doc.extract_image(xref)
+                                w = base_img.get("width", 0)
+                                h = base_img.get("height", 0)
+                                if pt_w > 0 and pt_h > 0 and w > 0 and h > 0:
+                                    dpi_x = (w * 72.0) / pt_w
+                                    dpi_y = (h * 72.0) / pt_h
+                                    max_dpi = max(max_dpi, dpi_x, dpi_y)
+                            except Exception:
+                                pass
+                    else:
+                        pix = page.get_pixmap()
+                        dpi_x = (pix.width * 72.0) / pt_w if pt_w > 0 else 300
+                        dpi_y = (pix.height * 72.0) / pt_h if pt_h > 0 else 300
+                        max_dpi = max(max_dpi, dpi_x, dpi_y)
+                doc.close()
+
+            elif ext in [".tif", ".tiff"]:
+                tiff = Image.open(fpath)
+                n_frames = getattr(tiff, "n_frames", 1)
+                for i in range(n_frames):
+                    tiff.seek(i)
+                    dpi = tiff.info.get("dpi")
+                    if dpi and isinstance(dpi, tuple) and len(dpi) >= 2:
+                        dpi_val = max(float(dpi[0]), float(dpi[1]))
+                        max_dpi = max(max_dpi, dpi_val)
+                    elif dpi and isinstance(dpi, (int, float)):
+                        max_dpi = max(max_dpi, float(dpi))
+
+            elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".webp"]:
+                img = Image.open(fpath)
+                dpi = img.info.get("dpi")
+                if dpi and isinstance(dpi, tuple) and len(dpi) >= 2:
+                    dpi_val = max(float(dpi[0]), float(dpi[1]))
+                    max_dpi = max(max_dpi, dpi_val)
+                elif dpi and isinstance(dpi, (int, float)):
+                    max_dpi = max(max_dpi, float(dpi))
+
+        except Exception as e:
+            print(f"Error calculating DPI for {fpath}: {e}")
+
+        if max_dpi <= 0:
+            max_dpi = 300.0
+
+        return int(round(max_dpi))
+
     def _inspect_files(self):
-        """Inspects selected/scanned input files to count pages and updates 'Pages' and 'Format' columns."""
+        """Inspects selected/scanned input files to count pages, image DPI, and updates 'Pages', 'ImgRes', and 'Format' columns."""
         selected_ids = self.tree.selection()
         if selected_ids:
             target_files = [self.item_to_filepath[iid] for iid in selected_ids if iid in self.item_to_filepath]
@@ -896,9 +959,13 @@ class S2POTApp(ctk.CTk):
             except Exception as e:
                 print(f"Inspection error for {fpath}: {e}")
 
+            dpi_val = self._get_file_max_dpi(fpath)
+            img_res_str = f"{dpi_val} DPI"
+
             if fpath in self.file_items:
                 item_id = self.file_items[fpath]
                 self.tree.set(item_id, "Pages", str(n_pages))
+                self.tree.set(item_id, "ImgRes", img_res_str)
                 inspected_count += 1
 
         messagebox.showinfo("Inspection Complete", f"Successfully inspected {inspected_count} file(s)!")
@@ -974,9 +1041,9 @@ class S2POTApp(ctk.CTk):
                     return float(val.replace("s", "").strip())
                 except ValueError:
                     return 0.0
-            elif col in ["Pages", "Chars"]:
+            elif col in ["Pages", "Chars", "ImgRes"]:
                 try:
-                    return int(val.replace(",", "").strip())
+                    return int(val.replace("DPI", "").replace(",", "").strip())
                 except ValueError:
                     return 0
             return val.lower()

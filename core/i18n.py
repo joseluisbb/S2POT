@@ -881,23 +881,23 @@ TRANSLATIONS = {
         "ru": "S2PIT — Smart Slim Preview Tool v1.0.0",
         "ar": "S2PIT — Smart Slim Preview Tool v1.0.0"
     },
-    "btn_open_s2pit": {
-        "pt_PT": "🔎 Abrir no S2PIT Preview...",
-        "en": "🔎 Open in S2PIT Preview...",
-        "es": "🔎 Abrir en S2PIT Preview...",
-        "fr": "🔎 Ouvrir dans S2PIT Preview...",
-        "zh": "🔎 在 S2PIT 预览中打开...",
-        "ru": "🔎 Открыть в S2PIT Preview...",
-        "ar": "🔎 فتح في معاينة S2PIT..."
+    "btn_tuning_file": {
+        "pt_PT": "📄 Abrir s2pot_tuning.json",
+        "en": "📄 Open s2pot_tuning.json",
+        "es": "📄 Abrir s2pot_tuning.json",
+        "fr": "📄 Ouvrir s2pot_tuning.json",
+        "zh": "📄 打开 s2pot_tuning.json",
+        "ru": "📄 Открыть s2pot_tuning.json",
+        "ar": "📄 فتح s2pot_tuning.json"
     },
     "s2pit_badge_active": {
-        "pt_PT": "✓ Regras S2PIT Ativas",
-        "en": "✓ S2PIT Rules Active",
-        "es": "✓ Reglas S2PIT Activas",
-        "fr": "✓ Règles S2PIT actives",
-        "zh": "✓ S2PIT 规则已生效",
-        "ru": "✓ Правила S2PIT активны",
-        "ar": "✓ قواعد S2PIT نشطة"
+        "pt_PT": "✓ Regras Ativas (s2pot_tuning.json)",
+        "en": "✓ Rules Active (s2pot_tuning.json)",
+        "es": "✓ Reglas Activas (s2pot_tuning.json)",
+        "fr": "✓ Règles actives (s2pot_tuning.json)",
+        "zh": "✓ 规则已生效 (s2pot_tuning.json)",
+        "ru": "✓ Правила активны (s2pot_tuning.json)",
+        "ar": "✓ قواعد نشطة (s2pot_tuning.json)"
     },
     "s2pit_box_tuning": {
         "pt_PT": "Ajuste & Tuning de Compressão",

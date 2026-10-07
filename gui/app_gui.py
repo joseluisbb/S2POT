@@ -236,15 +236,16 @@ class S2POTApp(ctk.CTk):
         self.lbl_badge = ctk.CTkLabel(self.box1, text="Ficheiros encontrados: 0", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3498db")
         self.lbl_badge.pack(anchor="w", padx=12, pady=(2, 2))
 
-        self.btn_open_s2pit = ctk.CTkButton(
+        self.btn_tuning_file = ctk.CTkButton(
             self.box1,
-            text=self._tr("btn_open_s2pit"),
-            fg_color="#8e44ad",
-            hover_color="#732d91",
+            text=self._tr("btn_tuning_file"),
+            fg_color="#27ae60",
+            hover_color="#1e8449",
+            state="disabled",
             height=26,
-            command=self._open_s2pit_preview
+            command=self._open_tuning_file
         )
-        self.btn_open_s2pit.pack(fill="x", padx=10, pady=(2, 6))
+        self.btn_tuning_file.pack(fill="x", padx=10, pady=(2, 6))
 
         fmt_frame = ctk.CTkFrame(self.box1, fg_color=("gray95", "#242424"), corner_radius=6)
         fmt_frame.pack(fill="x", padx=10, pady=(0, 8))
@@ -578,6 +579,7 @@ class S2POTApp(ctk.CTk):
         self.lbl_box1.configure(text=self._tr("box_1_input"))
         self.input_entry.configure(placeholder_text=self._tr("input_placeholder"))
         self.btn_in_browse.configure(text=self._tr("browse"))
+        self.btn_tuning_file.configure(text=self._tr("btn_tuning_file"))
 
         self.lbl_box2.configure(text=self._tr("box_2_output"))
         self.lbl_sub_docs.configure(text=f"• {self._tr('sub_documents')}")
@@ -835,21 +837,18 @@ class S2POTApp(ctk.CTk):
 
         self.found_files = sorted(list(set(files)))
 
-        # Check for s2pot_tuning.json badge
+        # Check for s2pot_tuning.json badge and update button state
         tuning_file = os.path.join(in_path, "s2pot_tuning.json")
         badge_text = self._tr("found_files_badge").format(count=len(self.found_files))
         if os.path.exists(tuning_file):
             badge_text += f"  |  {self._tr('s2pit_badge_active')}"
             self.lbl_badge.configure(text=badge_text, text_color="#2ecc71")
+            self.btn_tuning_file.configure(state="normal", fg_color="#27ae60", hover_color="#1e8449")
         else:
             self.lbl_badge.configure(text=badge_text, text_color="#3498db")
+            self.btn_tuning_file.configure(state="disabled", fg_color="gray50")
 
-    def _open_s2pit_preview(self):
-        in_path = self.input_entry.get().strip()
-        s2pit_script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "s2pit_main.py")
-        if os.path.exists(s2pit_script):
-            subprocess.Popen([sys.executable, s2pit_script, in_path])
-
+        # Auto-populate file table immediately upon folder scan
         self.tree.delete(*self.tree.get_children())
         self.file_items = {}
         self.item_to_filepath = {}
@@ -873,13 +872,22 @@ class S2POTApp(ctk.CTk):
                 except Exception:
                     fmt_str = "PDF"
 
-            # New Order: Filename, Format, Size, Pages, ImgRes, Chars, Status, Time
             item_id = self.tree.insert("", "end", values=(fname, fmt_str, f"{size_mb:.2f} MB", "-", "-", "-", "READY", "-"))
             self.file_items[f] = item_id
             self.item_to_filepath[item_id] = f
 
         self._on_table_select(None)
         self._check_conditional_controls()
+
+    def _open_tuning_file(self):
+        in_path = self.input_entry.get().strip()
+        if in_path:
+            tuning_file = os.path.join(in_path, "s2pot_tuning.json")
+            if os.path.exists(tuning_file):
+                try:
+                    os.startfile(tuning_file)
+                except Exception as e:
+                    messagebox.showerror("S2POT", f"Error opening s2pot_tuning.json: {e}")
 
     def _get_file_max_dpi(self, fpath):
         """Helper to calculate the highest image resolution (DPI) in a document or image file."""

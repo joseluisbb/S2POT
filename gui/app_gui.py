@@ -369,27 +369,14 @@ class S2POTApp(ctk.CTk):
         doc_frame = ctk.CTkFrame(self.box2, fg_color=("gray95", "#242424"), corner_radius=6)
         doc_frame.pack(fill="x", padx=10, pady=(4, 6))
 
-        self.var_pdf_orig = ctk.BooleanVar(value=self.config_data.get("export_pdf_original", True))
-        self.var_pdf_comp = ctk.BooleanVar(value=self.config_data.get("export_pdf_compressed", False))
+        self.var_pdf = ctk.BooleanVar(value=self.config_data.get("export_pdf", True))
         self.var_docx = ctk.BooleanVar(value=self.config_data.get("export_docx", True))
 
-        self.chk_pdf_orig = ctk.CTkCheckBox(doc_frame, text=self._tr("export_pdf_original"), variable=self.var_pdf_orig, command=self._on_option_toggle)
-        self.chk_pdf_orig.pack(anchor="w", padx=8, pady=2)
-
-        self.chk_pdf_comp = ctk.CTkCheckBox(doc_frame, text=self._tr("export_pdf_compressed"), variable=self.var_pdf_comp, command=self._on_option_toggle)
-        self.chk_pdf_comp.pack(anchor="w", padx=8, pady=2)
+        self.chk_pdf = ctk.CTkCheckBox(doc_frame, text=self._tr("export_pdf"), variable=self.var_pdf, command=self._on_option_toggle)
+        self.chk_pdf.pack(anchor="w", padx=8, pady=3)
 
         self.chk_docx = ctk.CTkCheckBox(doc_frame, text=self._tr("export_docx"), variable=self.var_docx, command=self._on_option_toggle)
-        self.chk_docx.pack(anchor="w", padx=8, pady=2)
-
-        self.var_tables = ctk.BooleanVar(value=self.config_data.get("extract_tables", True))
-        self.var_illustrations = ctk.BooleanVar(value=self.config_data.get("extract_illustrations", True))
-
-        self.chk_tables = ctk.CTkCheckBox(doc_frame, text=self._tr("extract_tables"), variable=self.var_tables, command=self._on_option_toggle)
-        self.chk_tables.pack(anchor="w", padx=24, pady=2)
-
-        self.chk_illustrations = ctk.CTkCheckBox(doc_frame, text=self._tr("extract_illustrations"), variable=self.var_illustrations, command=self._on_option_toggle)
-        self.chk_illustrations.pack(anchor="w", padx=24, pady=2)
+        self.chk_docx.pack(anchor="w", padx=8, pady=3)
 
         self.var_doc_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_doc_subfolders", False))
         self.chk_doc_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_doc_subfolders"), variable=self.var_doc_subfolders, command=self._on_option_toggle)
@@ -398,6 +385,19 @@ class S2POTApp(ctk.CTk):
         # Subsection 2: Data
         self.lbl_sub_data = ctk.CTkLabel(self.box2, text=f"• {self._tr('sub_data')}", font=ctk.CTkFont(size=12, weight="bold"), text_color="#e67e22")
         self.lbl_sub_data.pack(anchor="w", padx=12, pady=(4, 2))
+
+        # Destination Folder for Data Files placed IMMEDIATELY after title, BEFORE checkboxes
+        self.lbl_data_path = ctk.CTkLabel(self.box2, text=self._tr("data_folder_label"), font=ctk.CTkFont(size=11))
+        self.lbl_data_path.pack(anchor="w", padx=12, pady=(2, 1))
+
+        f_data = ctk.CTkFrame(self.box2, fg_color="transparent")
+        f_data.pack(fill="x", padx=10, pady=(0, 4))
+        self.data_entry = ctk.CTkEntry(f_data, placeholder_text=self._tr("data_placeholder"))
+        self.data_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.data_entry.bind("<Return>", self._on_data_entry_change)
+        self.data_entry.bind("<FocusOut>", self._on_data_entry_change)
+        self.btn_data_browse = ctk.CTkButton(f_data, text=self._tr("browse"), width=75, command=self._browse_data)
+        self.btn_data_browse.pack(side="right")
 
         data_fmt_frame = ctk.CTkFrame(self.box2, fg_color=("gray95", "#242424"), corner_radius=6)
         data_fmt_frame.pack(fill="x", padx=10, pady=2)
@@ -436,21 +436,9 @@ class S2POTApp(ctk.CTk):
         self.chk_docx_from_pdf = ctk.CTkCheckBox(f_data_cb3, text=self._tr("export_docx_from_pdf"), variable=self.var_docx_from_pdf, command=self._on_option_toggle)
         self.chk_docx_from_pdf.pack(side="left", padx=4)
 
-        self.lbl_data_path = ctk.CTkLabel(self.box2, text=self._tr("data_folder_label"), font=ctk.CTkFont(size=11))
-        self.lbl_data_path.pack(anchor="w", padx=12, pady=(4, 1))
-
-        f_data = ctk.CTkFrame(self.box2, fg_color="transparent")
-        f_data.pack(fill="x", padx=10, pady=(0, 4))
-        self.data_entry = ctk.CTkEntry(f_data, placeholder_text=self._tr("data_placeholder"))
-        self.data_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        self.data_entry.bind("<Return>", self._on_data_entry_change)
-        self.data_entry.bind("<FocusOut>", self._on_data_entry_change)
-        self.btn_data_browse = ctk.CTkButton(f_data, text=self._tr("browse"), width=75, command=self._browse_data)
-        self.btn_data_browse.pack(side="right")
-
         self.var_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_subfolders", False))
         self.chk_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_subfolders"), variable=self.var_subfolders, command=self._on_option_toggle)
-        self.chk_subfolders.pack(anchor="w", padx=12, pady=(0, 8))
+        self.chk_subfolders.pack(anchor="w", padx=12, pady=(4, 8))
 
         # ------------------- BOX 4: FILE LIST TABLE (WITH CHARS COLUMN) -------------------
         tbl_frame = ctk.CTkFrame(self, corner_radius=8)
@@ -531,11 +519,8 @@ class S2POTApp(ctk.CTk):
         # Section 2 (Box 2: Output Documents & Data)
         ToolTip(self.output_entry, "tt_docs_folder", self)
         ToolTip(self.btn_out_browse, "tt_browse", self)
-        ToolTip(self.chk_pdf_orig, "tt_export_pdf_original", self)
-        ToolTip(self.chk_pdf_comp, "tt_export_pdf_compressed", self)
+        ToolTip(self.chk_pdf, "tt_export_pdf", self)
         ToolTip(self.chk_docx, "tt_export_docx", self)
-        ToolTip(self.chk_tables, "tt_extract_tables", self)
-        ToolTip(self.chk_illustrations, "tt_extract_illustrations", self)
         ToolTip(self.chk_doc_subfolders, "tt_organize_doc_subfolders", self)
 
         ToolTip(self.chk_txt, "tt_fmt_txt", self)
@@ -587,11 +572,8 @@ class S2POTApp(ctk.CTk):
         self.output_entry.configure(placeholder_text=self._tr("output_placeholder"))
         self.btn_out_browse.configure(text=self._tr("browse"))
 
-        self.chk_pdf_orig.configure(text=self._tr("export_pdf_original"))
-        self.chk_pdf_comp.configure(text=self._tr("export_pdf_compressed"))
+        self.chk_pdf.configure(text=self._tr("export_pdf"))
         self.chk_docx.configure(text=self._tr("export_docx"))
-        self.chk_tables.configure(text=self._tr("extract_tables"))
-        self.chk_illustrations.configure(text=self._tr("extract_illustrations"))
         self.chk_doc_subfolders.configure(text=self._tr("organize_doc_subfolders"))
 
         self.lbl_sub_data.configure(text=f"• {self._tr('sub_data')}")
@@ -627,8 +609,9 @@ class S2POTApp(ctk.CTk):
         is_doc_sub_active = (self.chk_doc_subfolders.cget("state") != "disabled") and self.var_doc_subfolders.get()
         is_sub_active = (self.chk_subfolders.cget("state") != "disabled") and self.var_subfolders.get()
         return {
-            "export_pdf_original": self.var_pdf_orig.get(),
-            "export_pdf_compressed": self.var_pdf_comp.get(),
+            "export_pdf_original": False,
+            "export_pdf_compressed": self.var_pdf.get(),
+            "export_pdf": self.var_pdf.get(),
             "export_docx": self.var_docx.get(),
             "organize_doc_subfolders": is_doc_sub_active,
             "export_txt": self.var_txt.get(),
@@ -640,8 +623,8 @@ class S2POTApp(ctk.CTk):
             "export_txt_from_pdf": self.var_txt_from_pdf.get(),
             "export_docx_from_pdf": self.var_docx_from_pdf.get(),
             "organize_subfolders": is_sub_active,
-            "extract_tables": self.var_tables.get() if self.var_docx.get() else False,
-            "extract_illustrations": self.var_illustrations.get() if self.var_docx.get() else False
+            "extract_tables": self.var_docx.get(),
+            "extract_illustrations": self.var_docx.get()
         }
 
     def _validate_no_input_overwrite(self, test_output_dir=None, test_data_dir=None, target_files=None):
@@ -695,11 +678,11 @@ class S2POTApp(ctk.CTk):
             self._sync_paths_from_input()
 
     def _on_option_toggle(self):
-        self.config_data["export_pdf_original"] = self.var_pdf_orig.get()
-        self.config_data["export_pdf_compressed"] = self.var_pdf_comp.get()
+        self.config_data["export_pdf"] = self.var_pdf.get()
+        self.config_data["export_pdf_compressed"] = self.var_pdf.get()
         self.config_data["export_docx"] = self.var_docx.get()
-        self.config_data["extract_tables"] = self.var_tables.get()
-        self.config_data["extract_illustrations"] = self.var_illustrations.get()
+        self.config_data["extract_tables"] = self.var_docx.get()
+        self.config_data["extract_illustrations"] = self.var_docx.get()
         self.config_data["organize_doc_subfolders"] = self.var_doc_subfolders.get()
         self.config_data["export_txt"] = self.var_txt.get()
         self.config_data["export_hocr"] = self.var_hocr.get()
@@ -1013,8 +996,7 @@ class S2POTApp(ctk.CTk):
             self.chk_illustrations.configure(state="disabled")
 
         active_doc_targets = sum([
-            self.var_pdf_orig.get(),
-            self.var_pdf_comp.get(),
+            self.var_pdf.get(),
             self.var_docx.get()
         ])
 
@@ -1122,23 +1104,7 @@ class S2POTApp(ctk.CTk):
         is_doc_sub_active = (self.chk_doc_subfolders.cget("state") != "disabled") and self.var_doc_subfolders.get()
         is_sub_active = (self.chk_subfolders.cget("state") != "disabled") and self.var_subfolders.get()
 
-        export_opts = {
-            "export_pdf_original": self.var_pdf_orig.get(),
-            "export_pdf_compressed": self.var_pdf_comp.get(),
-            "export_docx": self.var_docx.get(),
-            "organize_doc_subfolders": is_doc_sub_active,
-            "export_txt": self.var_txt.get(),
-            "export_hocr": self.var_hocr.get(),
-            "export_words_json": self.var_json.get(),
-            "export_words_csv": self.var_csv.get(),
-            "export_words_xlsx": self.var_xlsx.get(),
-            "export_audit_report": self.var_audit.get(),
-            "export_txt_from_pdf": self.var_txt_from_pdf.get(),
-            "export_docx_from_pdf": self.var_docx_from_pdf.get(),
-            "organize_subfolders": is_sub_active,
-            "extract_tables": self.var_tables.get() if self.var_docx.get() else False,
-            "extract_illustrations": self.var_illustrations.get() if self.var_docx.get() else False
-        }
+        export_opts = self._get_current_export_options()
 
         data_dest = self.data_entry.get().strip() or out_path
         input_overwrites = check_input_overwrite_conflict(target_files, out_path, data_dir=data_dest, export_options=export_opts)

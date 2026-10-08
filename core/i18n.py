@@ -246,6 +246,15 @@ TRANSLATIONS = {
         "ru": "WEBP",
         "ar": "WEBP"
     },
+    "export_pdf": {
+        "pt_PT": "PDF Pesquisável",
+        "en": "Searchable PDF",
+        "es": "PDF Buscable",
+        "fr": "PDF Recherchable",
+        "zh": "可搜索 PDF",
+        "ru": "Поисковый PDF",
+        "ar": "ملف PDF قابل للبحث"
+    },
     "export_pdf_original": {
         "pt_PT": "PDF Pesquisável (Imagens Originais)",
         "en": "Searchable PDF (Original Images)",
@@ -274,13 +283,22 @@ TRANSLATIONS = {
         "ar": "مستند ورد (.docx)"
     },
     "organize_doc_subfolders": {
-        "pt_PT": "Organizar documentos em subpastas (PDF-OriginalImages, PDF-Compressed, DOCX)",
-        "en": "Organize documents in subfolders (PDF-OriginalImages, PDF-Compressed, DOCX)",
-        "es": "Organizar documentos en subcarpetas (PDF-OriginalImages, PDF-Compressed, DOCX)",
-        "fr": "Organiser les documents dans des sous-dossiers",
-        "zh": "在子文件夹中整理文档 (PDF-OriginalImages, PDF-Compressed, DOCX)",
-        "ru": "Организовать документы по подпапкам (PDF-OriginalImages, PDF-Compressed, DOCX)",
-        "ar": "تنظيم المستندات في مجلدات فرعية (PDF-OriginalImages, PDF-Compressed, DOCX)"
+        "pt_PT": "Organizar documentos em subpastas (PDF, DOCX)",
+        "en": "Organize documents in subfolders (PDF, DOCX)",
+        "es": "Organizar documentos en subcarpetas (PDF, DOCX)",
+        "fr": "Organiser les documents dans des sous-dossiers (PDF, DOCX)",
+        "zh": "按类型在子文件夹中组织文档 (PDF, DOCX)",
+        "ru": "Организовать документы по подпапкам (PDF, DOCX)",
+        "ar": "تنظيم المستندات في مجلدات فرعية (PDF, DOCX)"
+    },
+    "lens_mode": {
+        "pt_PT": "🔍 Lente Zoom",
+        "en": "🔍 Magnifier Lens",
+        "es": "🔍 Lente de Aumento",
+        "fr": "🔍 Loupe de zoom",
+        "zh": "🔍 放大镜模式",
+        "ru": "🔍 Увеличительная лупа",
+        "ar": "🔍 عدسة تكبير"
     },
     "fmt_txt": {
         "pt_PT": "Texto Simples (.txt)",

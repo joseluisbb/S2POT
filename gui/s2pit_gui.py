@@ -33,8 +33,8 @@ class S2PITApp(ctk.CTk):
         self.lang = self.config_data.get("language", "pt_PT")
 
         self.title(f"S2PIT — Smart Slim Preview Tool v{APP_VERSION}")
-        self.geometry("1280x820")
-        self.minsize(1100, 700)
+        self.geometry("1280x850")
+        self.minsize(1100, 720)
 
         self.input_dir = initial_input_dir or self.config_data.get("last_input_dir", "")
         self.found_files = []
@@ -52,6 +52,13 @@ class S2PITApp(ctk.CTk):
         self.var_dpi = ctk.StringVar(value="150 DPI")
         self.var_jpeg_quality = ctk.IntVar(value=60)
         self.var_scope = ctk.StringVar(value="batch") # "batch" or "file"
+        self.var_lens_mode = ctk.BooleanVar(value=False)
+
+        # Image display cache & lens popover window
+        self.current_orig_bgr = None
+        self.current_tuned_bgr = None
+        self.lens_popover = None
+        self.lbl_lens_img = None
 
         self._build_ui()
 
@@ -76,11 +83,22 @@ class S2PITApp(ctk.CTk):
         )
         self.lbl_title.pack(side="left", padx=15, pady=8)
 
+        # Lens Mode Toggle in Header Bar
+        self.chk_lens = ctk.CTkCheckBox(
+            hdr_frame,
+            text=self._tr("lens_mode"),
+            variable=self.var_lens_mode,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#f1c40f",
+            command=self._on_lens_toggle
+        )
+        self.chk_lens.pack(side="right", padx=15, pady=8)
+
         # Main Split Layout: Left Panel (Files) & Right Panel (Preview & Tuning)
         main_paned = ctk.CTkFrame(self, fg_color="transparent")
         main_paned.pack(fill="both", expand=True, padx=10, pady=10)
-        main_paned.grid_columnconfigure(0, weight=4) # Left Column
-        main_paned.grid_columnconfigure(1, weight=6) # Right Column
+        main_paned.grid_columnconfigure(0, weight=3) # Left Column (Files)
+        main_paned.grid_columnconfigure(1, weight=7) # Right Column (Preview & Tuning)
         main_paned.grid_rowconfigure(0, weight=1)
 
         # --- LEFT COLUMN (Box 1 & Box 4) ---
@@ -145,11 +163,11 @@ class S2PITApp(ctk.CTk):
         self.tree.heading("Pages", text=self._tr("col_pages"))
         self.tree.heading("ImgRes", text=self._tr("col_img_res"))
 
-        self.tree.column("Filename", width=180, anchor="w")
-        self.tree.column("Format", width=70, anchor="center")
+        self.tree.column("Filename", width=160, anchor="w")
+        self.tree.column("Format", width=60, anchor="center")
         self.tree.column("Size", width=65, anchor="e")
-        self.tree.column("Pages", width=50, anchor="center")
-        self.tree.column("ImgRes", width=65, anchor="center")
+        self.tree.column("Pages", width=45, anchor="center")
+        self.tree.column("ImgRes", width=60, anchor="center")
 
         vsb = ttk.Scrollbar(tbl_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
@@ -165,29 +183,79 @@ class S2PITApp(ctk.CTk):
         right_frame.grid_columnconfigure(0, weight=1)
 
         # 1. Top Thumbnails Bar
-        self.thumb_bar = ctk.CTkScrollableFrame(right_frame, orientation="horizontal", height=70, fg_color="#1a1a1a")
-        self.thumb_bar.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+        self.thumb_bar = ctk.CTkScrollableFrame(right_frame, orientation="horizontal", height=65, fg_color="#1a1a1a")
+        self.thumb_bar.grid(row=0, column=0, sticky="ew", padx=10, pady=(8, 4))
 
-        # 2. Central Split View & Preview Canvas
+        # 2. Central Split View Container (Original vs Result)
         view_container = ctk.CTkFrame(right_frame, fg_color="transparent")
-        view_container.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+        view_container.grid(row=1, column=0, sticky="nsew", padx=10, pady=4)
         view_container.grid_columnconfigure(0, weight=1)
         view_container.grid_columnconfigure(1, weight=1)
         view_container.grid_rowconfigure(0, weight=1)
 
-        # Left Original View Box
+        # === LEFT COLUMN: ORIGINAL PAGE BOX ===
         v_orig_box = ctk.CTkFrame(view_container)
-        v_orig_box.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-        ctk.CTkLabel(v_orig_box, text="📷 ORIGINAL PAGE", font=ctk.CTkFont(size=12, weight="bold"), text_color="#7f8c8d").pack(pady=4)
-        self.lbl_orig_img = ctk.CTkLabel(v_orig_box, text="No file selected")
-        self.lbl_orig_img.pack(fill="both", expand=True, padx=5, pady=5)
+        v_orig_box.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        v_orig_box.grid_rowconfigure(1, weight=1)
+        v_orig_box.grid_columnconfigure(0, weight=1)
 
-        # Right Tuned Preview Box
+        ctk.CTkLabel(v_orig_box, text="📷 ORIGINAL PAGE", font=ctk.CTkFont(size=12, weight="bold"), text_color="#7f8c8d").grid(row=0, column=0, pady=(6, 2))
+
+        self.lbl_orig_img = ctk.CTkLabel(v_orig_box, text="No file selected")
+        self.lbl_orig_img.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self.lbl_orig_img.bind("<Motion>", lambda e: self._on_lens_motion(e, "orig"))
+        self.lbl_orig_img.bind("<Leave>", lambda e: self._hide_lens())
+
+        # Original Metadata Card (Bottom of Left Box)
+        orig_card = ctk.CTkFrame(v_orig_box, fg_color=("gray90", "#242424"), corner_radius=6)
+        orig_card.grid(row=2, column=0, sticky="ew", padx=6, pady=(2, 6))
+
+        self.lbl_orig_meta_cmode = ctk.CTkLabel(orig_card, text="Color Mode: -", font=ctk.CTkFont(size=11, weight="bold"))
+        self.lbl_orig_meta_cmode.pack(anchor="w", padx=8, pady=(4, 1))
+
+        self.lbl_orig_meta_dpi = ctk.CTkLabel(orig_card, text="Original DPI: -", font=ctk.CTkFont(size=11, weight="bold"))
+        self.lbl_orig_meta_dpi.pack(anchor="w", padx=8, pady=(1, 4))
+
+        # === RIGHT COLUMN: TUNED RESULT PAGE BOX ===
         v_prev_box = ctk.CTkFrame(view_container)
-        v_prev_box.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
-        ctk.CTkLabel(v_prev_box, text="⚡ TUNED PREVIEW RESULT", font=ctk.CTkFont(size=12, weight="bold"), text_color="#2ecc71").pack(pady=4)
+        v_prev_box.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        v_prev_box.grid_rowconfigure(1, weight=1)
+        v_prev_box.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(v_prev_box, text="⚡ TUNED PREVIEW RESULT", font=ctk.CTkFont(size=12, weight="bold"), text_color="#2ecc71").grid(row=0, column=0, pady=(6, 2))
+
         self.lbl_prev_img = ctk.CTkLabel(v_prev_box, text="No file selected")
-        self.lbl_prev_img.pack(fill="both", expand=True, padx=5, pady=5)
+        self.lbl_prev_img.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self.lbl_prev_img.bind("<Motion>", lambda e: self._on_lens_motion(e, "tuned"))
+        self.lbl_prev_img.bind("<Leave>", lambda e: self._hide_lens())
+
+        # Tuning Controls Card (Bottom of Right Box)
+        tuning_card = ctk.CTkFrame(v_prev_box, fg_color=("gray90", "#242424"), corner_radius=6)
+        tuning_card.grid(row=2, column=0, sticky="ew", padx=6, pady=(2, 6))
+
+        # Row 1: Color Mode Radios
+        cm_row = ctk.CTkFrame(tuning_card, fg_color="transparent")
+        cm_row.pack(fill="x", padx=6, pady=(4, 2))
+        ctk.CTkLabel(cm_row, text=self._tr("color_mode_label"), font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(0, 6))
+
+        ctk.CTkRadioButton(cm_row, text=self._tr("color_mode_color"), variable=self.var_color_mode, value="color", command=self._update_preview).pack(side="left", padx=4)
+        ctk.CTkRadioButton(cm_row, text=self._tr("color_mode_grayscale"), variable=self.var_color_mode, value="grayscale", command=self._update_preview).pack(side="left", padx=4)
+        ctk.CTkRadioButton(cm_row, text=self._tr("color_mode_bw"), variable=self.var_color_mode, value="monochrome", command=self._update_preview).pack(side="left", padx=4)
+
+        # Row 2: Target DPI & JPEG Quality Slider
+        opt_row = ctk.CTkFrame(tuning_card, fg_color="transparent")
+        opt_row.pack(fill="x", padx=6, pady=(2, 6))
+
+        ctk.CTkLabel(opt_row, text="Target DPI:", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(0, 4))
+        self.cmb_dpi = ctk.CTkOptionMenu(opt_row, values=["300 DPI", "200 DPI", "150 DPI", "120 DPI"], variable=self.var_dpi, command=lambda v: self._update_preview(), width=105)
+        self.cmb_dpi.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(opt_row, text="JPEG Quality:", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(5, 2))
+        self.lbl_q_val = ctk.CTkLabel(opt_row, text=f"{self.var_jpeg_quality.get()}%", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3498db")
+        self.lbl_q_val.pack(side="left", padx=(0, 6))
+
+        self.sld_q = ctk.CTkSlider(opt_row, from_=30, to=95, number_of_steps=65, variable=self.var_jpeg_quality, command=self._on_quality_slider_change)
+        self.sld_q.pack(side="left", fill="x", expand=True, padx=4)
 
         # Real-time Stats Badge
         self.lbl_size_stats = ctk.CTkLabel(
@@ -198,48 +266,9 @@ class S2PITApp(ctk.CTk):
         )
         self.lbl_size_stats.grid(row=2, column=0, sticky="ew", padx=10, pady=4)
 
-        # 3. Tuning Controls Panel
-        ctrl_panel = ctk.CTkFrame(right_frame)
-        ctrl_panel.grid(row=3, column=0, sticky="ew", padx=10, pady=5)
-
-        # Presets Row
-        p_row = ctk.CTkFrame(ctrl_panel, fg_color="transparent")
-        p_row.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(p_row, text="Presets:", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=(0, 10))
-
-        ctk.CTkButton(p_row, text=self._tr("preset_max"), width=120, fg_color="#34495e", command=lambda: self._apply_preset("max")).pack(side="left", padx=4)
-        ctk.CTkButton(p_row, text=self._tr("preset_balanced"), width=110, fg_color="#2980b9", command=lambda: self._apply_preset("balanced")).pack(side="left", padx=4)
-        ctk.CTkButton(p_row, text=self._tr("preset_slim"), width=130, fg_color="#27ae60", command=lambda: self._apply_preset("slim")).pack(side="left", padx=4)
-
-        # Settings Controls Grid
-        s_grid = ctk.CTkFrame(ctrl_panel, fg_color="transparent")
-        s_grid.pack(fill="x", padx=10, pady=5)
-
-        # Color Mode
-        ctk.CTkLabel(s_grid, text=self._tr("color_mode_label"), font=ctk.CTkFont(size=11, weight="bold")).grid(row=0, column=0, sticky="w", padx=5)
-        cm_frame = ctk.CTkFrame(s_grid, fg_color="transparent")
-        cm_frame.grid(row=0, column=1, columnspan=3, sticky="w")
-
-        ctk.CTkRadioButton(cm_frame, text=self._tr("color_mode_color"), variable=self.var_color_mode, value="color", command=self._update_preview).pack(side="left", padx=5)
-        ctk.CTkRadioButton(cm_frame, text=self._tr("color_mode_grayscale"), variable=self.var_color_mode, value="grayscale", command=self._update_preview).pack(side="left", padx=5)
-        ctk.CTkRadioButton(cm_frame, text=self._tr("color_mode_bw"), variable=self.var_color_mode, value="monochrome", command=self._update_preview).pack(side="left", padx=5)
-
-        # Target DPI & JPEG Quality Slider
-        ctk.CTkLabel(s_grid, text="Target DPI:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        self.cmb_dpi = ctk.CTkOptionMenu(s_grid, values=["300 DPI", "200 DPI", "150 DPI", "120 DPI"], variable=self.var_dpi, command=lambda v: self._update_preview(), width=110)
-        self.cmb_dpi.grid(row=1, column=1, sticky="w", padx=5, pady=5)
-
-        ctk.CTkLabel(s_grid, text="JPEG Quality:", font=ctk.CTkFont(size=11, weight="bold")).grid(row=1, column=2, sticky="w", padx=(15, 5), pady=5)
-        self.lbl_q_val = ctk.CTkLabel(s_grid, text=f"{self.var_jpeg_quality.get()}%", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3498db")
-        self.lbl_q_val.grid(row=1, column=3, sticky="w", padx=5, pady=5)
-
-        self.sld_q = ctk.CTkSlider(s_grid, from_=30, to=95, number_of_steps=65, variable=self.var_jpeg_quality, command=self._on_quality_slider_change)
-        self.sld_q.grid(row=1, column=4, sticky="ew", padx=10, pady=5)
-        s_grid.grid_columnconfigure(4, weight=1)
-
         # Bottom Scope & Action Bar
         act_bar = ctk.CTkFrame(right_frame, fg_color="transparent")
-        act_bar.grid(row=4, column=0, sticky="ew", padx=10, pady=(5, 10))
+        act_bar.grid(row=3, column=0, sticky="ew", padx=10, pady=(2, 8))
 
         ctk.CTkRadioButton(act_bar, text=self._tr("scope_all_batch"), variable=self.var_scope, value="batch", command=self._on_scope_change).pack(side="left", padx=10)
         ctk.CTkRadioButton(act_bar, text=self._tr("scope_this_file"), variable=self.var_scope, value="file", command=self._on_scope_change).pack(side="left", padx=10)
@@ -249,6 +278,81 @@ class S2PITApp(ctk.CTk):
 
         self.btn_save = ctk.CTkButton(act_bar, text=self._tr("btn_save_tuning"), fg_color="#27ae60", hover_color="#1e8449", command=self._save_rules_to_folder)
         self.btn_save.pack(side="right", padx=5)
+
+    def _on_lens_toggle(self):
+        if not self.var_lens_mode.get():
+            self._hide_lens()
+
+    def _hide_lens(self):
+        if self.lens_popover is not None:
+            try:
+                self.lens_popover.destroy()
+            except Exception:
+                pass
+            self.lens_popover = None
+            self.lbl_lens_img = None
+
+    def _on_lens_motion(self, event, target_type):
+        if not self.var_lens_mode.get():
+            self._hide_lens()
+            return
+
+        target_bgr = self.current_orig_bgr if target_type == "orig" else self.current_tuned_bgr
+        target_label = self.lbl_orig_img if target_type == "orig" else self.lbl_prev_img
+
+        if target_bgr is None or target_label is None:
+            self._hide_lens()
+            return
+
+        lw = target_label.winfo_width()
+        lh = target_label.winfo_height()
+        if lw <= 10 or lh <= 10:
+            return
+
+        img_h, img_w = target_bgr.shape[:2]
+
+        rx = float(event.x) / float(lw)
+        ry = float(event.y) / float(lh)
+
+        rx = max(0.0, min(1.0, rx))
+        ry = max(0.0, min(1.0, ry))
+
+        cx = int(rx * img_w)
+        cy = int(ry * img_h)
+
+        crop_w, crop_h = 130, 130
+        x1 = max(0, cx - crop_w // 2)
+        y1 = max(0, cy - crop_h // 2)
+        x2 = min(img_w, x1 + crop_w)
+        y2 = min(img_h, y1 + crop_h)
+
+        crop = target_bgr[y1:y2, x1:x2]
+        if crop.size == 0:
+            return
+
+        zoom_w, zoom_h = 260, 260
+        zoomed = cv2.resize(crop, (zoom_w, zoom_h), interpolation=cv2.INTER_CUBIC)
+
+        cv2.rectangle(zoomed, (0, 0), (zoom_w - 1, zoom_h - 1), (0, 255, 240), 3)
+        mid_x, mid_y = zoom_w // 2, zoom_h // 2
+        cv2.drawMarker(zoomed, (mid_x, mid_y), (0, 255, 240), markerType=cv2.MARKER_CROSS, markerSize=16, thickness=2)
+
+        rgb = cv2.cvtColor(zoomed, cv2.COLOR_BGR2RGB)
+        pi = ImageTk.PhotoImage(Image.fromarray(rgb))
+
+        root_x = target_label.winfo_rootx() + event.x + 20
+        root_y = target_label.winfo_rooty() + event.y + 20
+
+        if self.lens_popover is None or not self.lens_popover.winfo_exists():
+            self.lens_popover = tk.Toplevel(self)
+            self.lens_popover.overrideredirect(True)
+            self.lens_popover.attributes("-topmost", True)
+            self.lbl_lens_img = tk.Label(self.lens_popover, bg="black")
+            self.lbl_lens_img.pack()
+
+        self.lens_popover.geometry(f"{zoom_w}x{zoom_h}+{root_x}+{root_y}")
+        self.lbl_lens_img.configure(image=pi)
+        self.lbl_lens_img.image = pi
 
     def _browse_input(self):
         d = filedialog.askdirectory(title="Select Input Folder")
@@ -274,7 +378,6 @@ class S2PITApp(ctk.CTk):
             self.lbl_badge.configure(text=self._tr("found_files_badge").format(count=0))
             return
 
-        # Load existing s2pot_tuning.json if present
         loaded = load_tuning_config(in_path)
         if loaded:
             self.global_tuning = loaded.get("global_tuning", dict(DEFAULT_GLOBAL_TUNING))
@@ -330,6 +433,44 @@ class S2PITApp(ctk.CTk):
         else:
             self.var_scope.set("batch")
 
+    def _get_file_max_dpi(self, fpath):
+        ext = os.path.splitext(fpath)[1].lower()
+        max_dpi = 0
+        try:
+            if ext == ".pdf":
+                doc = fitz.open(fpath)
+                for page in doc:
+                    pt_w, pt_h = page.rect.width, page.rect.height
+                    image_list = page.get_images()
+                    if image_list:
+                        for img in image_list:
+                            try:
+                                base_img = doc.extract_image(img[0])
+                                w, h = base_img.get("width", 0), base_img.get("height", 0)
+                                if pt_w > 0 and pt_h > 0 and w > 0 and h > 0:
+                                    max_dpi = max(max_dpi, (w * 72.0) / pt_w, (h * 72.0) / pt_h)
+                            except Exception: pass
+                    else:
+                        pix = page.get_pixmap()
+                        if pt_w > 0 and pt_h > 0:
+                            max_dpi = max(max_dpi, (pix.width * 72.0) / pt_w, (pix.height * 72.0) / pt_h)
+                doc.close()
+
+            elif ext in [".tif", ".tiff"]:
+                tiff = Image.open(fpath)
+                dpi = tiff.info.get("dpi")
+                if dpi and isinstance(dpi, tuple):
+                    max_dpi = max(float(dpi[0]), float(dpi[1]))
+            elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".webp"]:
+                img = Image.open(fpath)
+                dpi = img.info.get("dpi")
+                if dpi and isinstance(dpi, tuple):
+                    max_dpi = max(float(dpi[0]), float(dpi[1]))
+        except Exception:
+            pass
+
+        return int(round(max_dpi)) if max_dpi > 0 else 300
+
     def _on_file_select(self, event):
         selected_ids = self.tree.selection()
         if not selected_ids:
@@ -347,7 +488,6 @@ class S2PITApp(ctk.CTk):
         self._update_preview()
 
     def _load_file_pages(self, fpath):
-        # Clear thumbnail bar
         for widget in self.thumb_bar.winfo_children():
             widget.destroy()
 
@@ -379,12 +519,12 @@ class S2PITApp(ctk.CTk):
         except Exception as e:
             print(f"Error loading pages for {fpath}: {e}")
 
-        # Update Tree Pages count
         if fpath in self.file_items:
             iid = self.file_items[fpath]
             self.tree.set(iid, "Pages", str(len(self.page_images_cache)))
+            max_dpi = self._get_file_max_dpi(fpath)
+            self.tree.set(iid, "ImgRes", f"{max_dpi} DPI")
 
-        # Build Thumbnails Bar
         for idx, bgr_img in enumerate(self.page_images_cache):
             h, w = bgr_img.shape[:2]
             scale = 50.0 / float(h)
@@ -420,12 +560,10 @@ class S2PITApp(ctk.CTk):
         bgr_orig = self.page_images_cache[self.selected_page_idx]
         h_orig, w_orig = bgr_orig.shape[:2]
 
-        # Read current tuning settings
         cmode = self.var_color_mode.get()
         target_dpi = int(self.var_dpi.get().replace("DPI", "").strip())
         jpeg_q = self.var_jpeg_quality.get()
 
-        # Update active tuning state based on scope
         filename = os.path.basename(self.selected_file_path) if self.selected_file_path else None
         active_dict = {
             "color_mode": cmode,
@@ -444,11 +582,13 @@ class S2PITApp(ctk.CTk):
         # Apply Tuned Transformations
         bgr_tuned = apply_color_mode(bgr_orig.copy(), cmode)
 
-        # Downscaling simulation
         max_dim = 1500 if target_dpi <= 150 else 2000
         if max(h_orig, w_orig) > max_dim:
             sc = float(max_dim) / float(max(h_orig, w_orig))
             bgr_tuned = cv2.resize(bgr_tuned, (0, 0), fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
+
+        self.current_orig_bgr = bgr_orig
+        self.current_tuned_bgr = bgr_tuned
 
         # Size estimation via JPEG encoding
         _, enc_orig = cv2.imencode('.jpg', bgr_orig, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
@@ -465,6 +605,16 @@ class S2PITApp(ctk.CTk):
             text=f"Original Page: {orig_kb/1024.0:.2f} MB  |  Tuned Preview: {tuned_kb:.1f} KB  (-{red_pct:.1f}% Reduction)",
             text_color="#2ecc71" if red_pct > 20 else "#e67e22"
         )
+
+        # Update Original Metadata Card
+        detect_cmode = "Color (RGB)"
+        if len(bgr_orig.shape) == 2 or (bgr_orig.shape[2] == 3 and np.array_equal(bgr_orig[:,:,0], bgr_orig[:,:,1]) and np.array_equal(bgr_orig[:,:,1], bgr_orig[:,:,2])):
+            detect_cmode = "Grayscale (8-bit)"
+
+        orig_dpi_val = self._get_file_max_dpi(self.selected_file_path) if self.selected_file_path else 300
+
+        self.lbl_orig_meta_cmode.configure(text=f"Color Mode: {detect_cmode}")
+        self.lbl_orig_meta_dpi.configure(text=f"Original DPI: {orig_dpi_val} DPI  |  {w_orig} × {h_orig} px")
 
         # Display Images in UI (Scaled to fit box)
         self._display_image_on_label(bgr_orig, self.lbl_orig_img)
@@ -490,22 +640,6 @@ class S2PITApp(ctk.CTk):
     def _on_scope_change(self):
         self._update_preview()
 
-    def _apply_preset(self, preset_key):
-        if preset_key == "max":
-            self.var_color_mode.set("color")
-            self.var_dpi.set("300 DPI")
-            self.var_jpeg_quality.set(90)
-        elif preset_key == "balanced":
-            self.var_color_mode.set("color")
-            self.var_dpi.set("200 DPI")
-            self.var_jpeg_quality.set(65)
-        elif preset_key == "slim":
-            self.var_color_mode.set("grayscale")
-            self.var_dpi.set("150 DPI")
-            self.var_jpeg_quality.set(45)
-        self.lbl_q_val.configure(text=f"{self.var_jpeg_quality.get()}%")
-        self._update_preview()
-
     def _save_rules_to_folder(self):
         in_path = self.input_entry.get().strip()
         if not in_path or not os.path.exists(in_path):
@@ -518,9 +652,7 @@ class S2PITApp(ctk.CTk):
 
     def _launch_s2pot(self):
         self._save_rules_to_folder()
-        in_path = self.input_entry.get().strip()
 
-        # Launch S2POT process
         s2pot_script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main.py")
         if os.path.exists(s2pot_script):
             subprocess.Popen([sys.executable, s2pot_script])

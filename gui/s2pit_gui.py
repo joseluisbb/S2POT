@@ -39,8 +39,8 @@ class S2PITApp(ctk.CTk):
         self.lang = self.config_data.get("language", "pt_PT")
 
         self.title(f"S2PIT — Smart Slim Preview Tool v{APP_VERSION}")
-        self.geometry("1280x850")
-        self.minsize(1100, 720)
+        self.geometry("1280x880")
+        self.minsize(1100, 750)
 
         self.input_dir = initial_input_dir or self.config_data.get("last_input_dir", "")
         self.found_files = []
@@ -68,6 +68,8 @@ class S2PITApp(ctk.CTk):
 
         self.lens_popover = None
         self.lbl_lens_img = None
+
+        self._resize_timer = None
 
         self._build_ui()
 
@@ -106,7 +108,7 @@ class S2PITApp(ctk.CTk):
         self.cmb_lens = ctk.CTkOptionMenu(
             lens_frame,
             values=["Off", "125%", "150%", "175%", "200%", "300%", "400%"],
-            width=90,
+            width=95,
             command=lambda v: self._on_lens_zoom_change(v)
         )
         self.cmb_lens.set("Off")
@@ -205,14 +207,15 @@ class S2PITApp(ctk.CTk):
         self.thumb_bar.grid(row=0, column=0, sticky="ew", padx=10, pady=(8, 4))
 
         # 2. Central Split View Container (Original vs Result - FORCED STRICT 50% / 50% UNIFORM WEIGHT)
-        view_container = ctk.CTkFrame(right_frame, fg_color="transparent")
-        view_container.grid(row=1, column=0, sticky="nsew", padx=10, pady=4)
-        view_container.grid_columnconfigure(0, weight=1, uniform="preview_cols")
-        view_container.grid_columnconfigure(1, weight=1, uniform="preview_cols")
-        view_container.grid_rowconfigure(0, weight=1)
+        self.view_container = ctk.CTkFrame(right_frame, fg_color="transparent")
+        self.view_container.grid(row=1, column=0, sticky="nsew", padx=10, pady=4)
+        self.view_container.grid_columnconfigure(0, weight=1, uniform="preview_cols")
+        self.view_container.grid_columnconfigure(1, weight=1, uniform="preview_cols")
+        self.view_container.grid_rowconfigure(0, weight=1)
+        self.view_container.bind("<Configure>", self._on_container_resize)
 
         # === LEFT COLUMN: ORIGINAL PAGE BOX ===
-        v_orig_box = ctk.CTkFrame(view_container)
+        v_orig_box = ctk.CTkFrame(self.view_container)
         v_orig_box.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         v_orig_box.grid_rowconfigure(1, weight=1)
         v_orig_box.grid_columnconfigure(0, weight=1)
@@ -221,21 +224,22 @@ class S2PITApp(ctk.CTk):
 
         self.lbl_orig_img = ctk.CTkLabel(v_orig_box, text="No file selected")
         self.lbl_orig_img.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        self.lbl_orig_img.bind("<Motion>", lambda e: self._on_lens_motion(e, "orig"))
-        self.lbl_orig_img.bind("<Leave>", lambda e: self._hide_lens())
 
-        # Original Metadata Card (Bottom of Left Box - Height Aligned with Right Box)
+        # Original Metadata Card (3 Lines - Height Aligned with Right Tuning Card)
         orig_card = ctk.CTkFrame(v_orig_box, fg_color=("gray90", "#242424"), corner_radius=6)
         orig_card.grid(row=2, column=0, sticky="ew", padx=6, pady=(2, 6))
 
         self.lbl_orig_meta_cmode = ctk.CTkLabel(orig_card, text="Color Mode: -", font=ctk.CTkFont(size=11, weight="bold"))
-        self.lbl_orig_meta_cmode.pack(anchor="w", padx=8, pady=(4, 2))
+        self.lbl_orig_meta_cmode.pack(anchor="w", padx=8, pady=(4, 1))
 
         self.lbl_orig_meta_dpi = ctk.CTkLabel(orig_card, text="Original DPI: -", font=ctk.CTkFont(size=11, weight="bold"))
-        self.lbl_orig_meta_dpi.pack(anchor="w", padx=8, pady=(2, 6))
+        self.lbl_orig_meta_dpi.pack(anchor="w", padx=8, pady=1)
+
+        self.lbl_orig_meta_dims = ctk.CTkLabel(orig_card, text="Dimensions: -", font=ctk.CTkFont(size=11, weight="bold"))
+        self.lbl_orig_meta_dims.pack(anchor="w", padx=8, pady=(1, 4))
 
         # === RIGHT COLUMN: TUNED RESULT PAGE BOX ===
-        v_prev_box = ctk.CTkFrame(view_container)
+        v_prev_box = ctk.CTkFrame(self.view_container)
         v_prev_box.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
         v_prev_box.grid_rowconfigure(1, weight=1)
         v_prev_box.grid_columnconfigure(0, weight=1)
@@ -244,18 +248,24 @@ class S2PITApp(ctk.CTk):
 
         self.lbl_prev_img = ctk.CTkLabel(v_prev_box, text="No file selected")
         self.lbl_prev_img.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        self.lbl_prev_img.bind("<Motion>", lambda e: self._on_lens_motion(e, "tuned"))
-        self.lbl_prev_img.bind("<Leave>", lambda e: self._hide_lens())
 
-        # Compact 2-Line Tuning Controls Card (Bottom of Right Box - Height Aligned with Left Box)
+        # Attach Lens Motion and Leave Event Handlers directly to Label Widgets
+        for lbl_widget, ttype in [(self.lbl_orig_img, "orig"), (self.lbl_prev_img, "tuned")]:
+            lbl_widget.bind("<Motion>", lambda e, t=ttype: self._on_lens_motion(e, t))
+            lbl_widget.bind("<Leave>", lambda e: self._hide_lens())
+            if hasattr(lbl_widget, "_label"):
+                lbl_widget._label.bind("<Motion>", lambda e, t=ttype: self._on_lens_motion(e, t))
+                lbl_widget._label.bind("<Leave>", lambda e: self._hide_lens())
+
+        # 3-Line Vertical Tuning Controls Card (Under Tuned Result Page)
         tuning_card = ctk.CTkFrame(v_prev_box, fg_color=("gray90", "#242424"), corner_radius=6)
         tuning_card.grid(row=2, column=0, sticky="ew", padx=6, pady=(2, 6))
 
-        # Line 1: Color Mode Dropdown & Target DPI Dropdown side-by-side
+        # Line 1: Color Mode Dropdown
         line1 = ctk.CTkFrame(tuning_card, fg_color="transparent")
-        line1.pack(fill="x", padx=6, pady=(4, 2))
+        line1.pack(fill="x", padx=6, pady=(4, 1))
 
-        ctk.CTkLabel(line1, text=f"{self._tr('color_mode_label')}", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(0, 4))
+        ctk.CTkLabel(line1, text=f"{self._tr('color_mode_label')}", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(0, 6))
 
         self.color_opts_map = {
             self._tr("color_mode_color"): "color",
@@ -265,30 +275,34 @@ class S2PITApp(ctk.CTk):
         self.cmb_color = ctk.CTkOptionMenu(
             line1,
             values=list(self.color_opts_map.keys()),
-            width=125,
+            width=180,
             command=lambda v: self._on_color_dropdown_change(v)
         )
-        self.cmb_color.pack(side="left", padx=(0, 8))
+        self.cmb_color.pack(side="left", fill="x", expand=True)
 
-        ctk.CTkLabel(line1, text="Target DPI:", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(4, 4))
+        # Line 2: Target DPI Dropdown
+        line2 = ctk.CTkFrame(tuning_card, fg_color="transparent")
+        line2.pack(fill="x", padx=6, pady=1)
+
+        ctk.CTkLabel(line2, text="Target DPI:", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(0, 6))
         self.cmb_dpi = ctk.CTkOptionMenu(
-            line1,
+            line2,
             values=["300 DPI", "200 DPI", "150 DPI", "120 DPI"],
             variable=self.var_dpi,
-            width=95,
+            width=140,
             command=lambda v: self._update_preview()
         )
-        self.cmb_dpi.pack(side="left")
+        self.cmb_dpi.pack(side="left", fill="x", expand=True)
 
-        # Line 2: JPEG Quality Slider
-        line2 = ctk.CTkFrame(tuning_card, fg_color="transparent")
-        line2.pack(fill="x", padx=6, pady=(2, 4))
+        # Line 3: JPEG Quality Slider
+        line3 = ctk.CTkFrame(tuning_card, fg_color="transparent")
+        line3.pack(fill="x", padx=6, pady=(1, 4))
 
-        ctk.CTkLabel(line2, text="JPEG Quality:", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(0, 4))
-        self.lbl_q_val = ctk.CTkLabel(line2, text=f"{self.var_jpeg_quality.get()}%", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3498db")
+        ctk.CTkLabel(line3, text="JPEG Quality:", font=ctk.CTkFont(size=11, weight="bold")).pack(side="left", padx=(0, 4))
+        self.lbl_q_val = ctk.CTkLabel(line3, text=f"{self.var_jpeg_quality.get()}%", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3498db")
         self.lbl_q_val.pack(side="left", padx=(0, 6))
 
-        self.sld_q = ctk.CTkSlider(line2, from_=30, to=95, number_of_steps=65, variable=self.var_jpeg_quality, command=self._on_quality_slider_change)
+        self.sld_q = ctk.CTkSlider(line3, from_=30, to=95, number_of_steps=65, variable=self.var_jpeg_quality, command=self._on_quality_slider_change)
         self.sld_q.pack(side="left", fill="x", expand=True, padx=4)
 
         # Real-time Stats Badge
@@ -329,6 +343,26 @@ class S2PITApp(ctk.CTk):
         )
         self.btn_save.pack(side="right", padx=5)
 
+    def _on_container_resize(self, event):
+        """Dynamic resize handler: resizes displayed images when the main window expands."""
+        if self._resize_timer is not None:
+            self.after_cancel(self._resize_timer)
+        self._resize_timer = self.after(100, self._refresh_image_displays)
+
+    def _refresh_image_displays(self):
+        self._resize_timer = None
+        if self.current_orig_bgr is not None and self.current_tuned_bgr is not None:
+            bw_orig = self.lbl_orig_img.winfo_width()
+            bh_orig = self.lbl_orig_img.winfo_height()
+            bw_tuned = self.lbl_prev_img.winfo_width()
+            bh_tuned = self.lbl_prev_img.winfo_height()
+
+            bw = min(bw_orig, bw_tuned) if (bw_orig > 50 and bw_tuned > 50) else max(bw_orig, bw_tuned, 350)
+            bh = min(bh_orig, bh_tuned) if (bh_orig > 50 and bh_tuned > 50) else max(bh_orig, bh_tuned, 400)
+
+            self._display_image_on_label(self.current_orig_bgr, self.lbl_orig_img, target_bw=bw, target_bh=bh)
+            self._display_image_on_label(self.current_tuned_bgr, self.lbl_prev_img, target_bw=bw, target_bh=bh)
+
     def _on_color_dropdown_change(self, choice_str):
         cmode = self.color_opts_map.get(choice_str, "color")
         self.var_color_mode.set(cmode)
@@ -367,30 +401,28 @@ class S2PITApp(ctk.CTk):
         target_label = self.lbl_orig_img if target_type == "orig" else self.lbl_prev_img
         display_info = getattr(self, "orig_display_info" if target_type == "orig" else "tuned_display_info", None)
 
-        if target_bgr is None or target_label is None:
+        if target_bgr is None or target_label is None or not display_info:
             self._hide_lens()
             return
 
-        lw = target_label.winfo_width()
-        lh = target_label.winfo_height()
-        if lw <= 10 or lh <= 10:
+        nw, nh, offset_x, offset_y = display_info
+
+        cursor_x_in_label = float(event.x)
+        cursor_y_in_label = float(event.y)
+
+        cursor_x_in_img = cursor_x_in_label - offset_x
+        cursor_y_in_img = cursor_y_in_label - offset_y
+
+        if cursor_x_in_img < 0 or cursor_x_in_img > nw or cursor_y_in_img < 0 or cursor_y_in_img > nh:
+            self._hide_lens()
             return
 
+        norm_x = max(0.0, min(1.0, cursor_x_in_img / float(nw))) if nw > 0 else 0.5
+        norm_y = max(0.0, min(1.0, cursor_y_in_img / float(nh))) if nh > 0 else 0.5
+
         img_h, img_w = target_bgr.shape[:2]
-
-        if display_info:
-            nw, nh, offset_x, offset_y = display_info
-            rel_x = (float(event.x) - offset_x) / float(nw) if nw > 0 else 0.5
-            rel_y = (float(event.y) - offset_y) / float(nh) if nh > 0 else 0.5
-        else:
-            rel_x = float(event.x) / float(lw)
-            rel_y = float(event.y) / float(lh)
-
-        rel_x = max(0.0, min(1.0, rel_x))
-        rel_y = max(0.0, min(1.0, rel_y))
-
-        cx_px = int(rel_x * img_w)
-        cy_px = int(rel_y * img_h)
+        cx_px = int(norm_x * img_w)
+        cy_px = int(norm_y * img_h)
 
         crop_fraction = 0.25 / zoom_factor
         crop_w_px = max(16, int(crop_fraction * img_w))
@@ -415,8 +447,9 @@ class S2PITApp(ctk.CTk):
         rgb = cv2.cvtColor(zoomed, cv2.COLOR_BGR2RGB)
         pi = ImageTk.PhotoImage(Image.fromarray(rgb))
 
-        root_x = target_label.winfo_rootx() + event.x + 20
-        root_y = target_label.winfo_rooty() + event.y + 20
+        inner_widget = getattr(target_label, "_label", target_label)
+        root_x = inner_widget.winfo_rootx() + event.x + 25
+        root_y = inner_widget.winfo_rooty() + event.y + 25
 
         if self.lens_popover is None or not self.lens_popover.winfo_exists():
             self.lens_popover = tk.Toplevel(self)
@@ -519,7 +552,6 @@ class S2PITApp(ctk.CTk):
         self.var_jpeg_quality.set(eff.get("jpeg_quality", 70))
         self.lbl_q_val.configure(text=f"{eff.get('jpeg_quality', 70)}%")
 
-        # Set dropdown scope selection based on active config state
         page_str = str(page_idx)
         if filename and filename in self.page_tunings and page_str in self.page_tunings[filename]:
             self.cmb_scope.set(self._tr("scope_this_page"))
@@ -725,15 +757,21 @@ class S2PITApp(ctk.CTk):
         orig_dpi_val = self._get_file_max_dpi(self.selected_file_path) if self.selected_file_path else 300
 
         self.lbl_orig_meta_cmode.configure(text=f"Color Mode: {detect_cmode}")
-        self.lbl_orig_meta_dpi.configure(text=f"Original DPI: {orig_dpi_val} DPI  |  {w_orig} × {h_orig} px")
+        self.lbl_orig_meta_dpi.configure(text=f"Original DPI: {orig_dpi_val} DPI")
+        self.lbl_orig_meta_dims.configure(text=f"Dimensions: {w_orig} × {h_orig} px")
 
-        # Display Images in UI (Scaled to fit box)
-        self._display_image_on_label(bgr_orig, self.lbl_orig_img)
-        self._display_image_on_label(bgr_tuned, self.lbl_prev_img)
+        # Refresh displayed images with matching equal dimensions
+        self._refresh_image_displays()
 
-    def _display_image_on_label(self, bgr_img, label_widget):
+    def _display_image_on_label(self, bgr_img, label_widget, target_bw=None, target_bh=None):
         h, w = bgr_img.shape[:2]
-        bw, bh = label_widget.winfo_width() or 350, label_widget.winfo_height() or 400
+
+        bw = target_bw or label_widget.winfo_width() or 350
+        bh = target_bh or label_widget.winfo_height() or 400
+
+        bw = max(100, bw)
+        bh = max(100, bh)
+
         scale = min(float(bw) / float(w), float(bh) / float(h))
         nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
 
@@ -743,7 +781,6 @@ class S2PITApp(ctk.CTk):
         label_widget.configure(image=pi, text="")
         label_widget.image = pi
 
-        # Store accurate letterbox offsets for Lens tracking
         offset_x = (bw - nw) / 2.0
         offset_y = (bh - nh) / 2.0
         if label_widget == self.lbl_orig_img:

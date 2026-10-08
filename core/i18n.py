@@ -1007,6 +1007,15 @@ TRANSLATIONS = {
         "ru": "🚀 Запустить S2POT",
         "ar": "🚀 تشغيل معالجة S2POT"
     },
+    "btn_save_options_file": {
+        "pt_PT": "💾 Gravar Opções em Ficheiro",
+        "en": "💾 Save Options to File",
+        "es": "💾 Guardar Opciones en Archivo",
+        "fr": "💾 Enregistrer les options",
+        "zh": "💾 保存选项至文件",
+        "ru": "💾 Сохранить опции в файл",
+        "ar": "💾 حفظ الخيارات في ملف"
+    },
     "scope_all_batch": {
         "pt_PT": "Aplicar a Toda a Batch",
         "en": "Apply to All Batch",
@@ -1024,6 +1033,15 @@ TRANSLATIONS = {
         "zh": "仅应用于当前文件",
         "ru": "Применить только к этому файлу",
         "ar": "تطبيق على هذا الملف فقط"
+    },
+    "scope_this_page": {
+        "pt_PT": "Aplicar Apenas a Esta Página",
+        "en": "Apply Only to This Page",
+        "es": "Aplicar Solo a Esta Página",
+        "fr": "Appliquer uniquement à cette page",
+        "zh": "仅应用于当前页面",
+        "ru": "Применить только к этой странице",
+        "ar": "تطبيق على هذه الصفحة فقط"
     }
 }
 

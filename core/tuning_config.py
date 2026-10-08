@@ -21,7 +21,7 @@ def get_tuning_file_path(input_dir):
 def load_tuning_config(input_dir):
     """
     Loads s2pot_tuning.json from the input directory if it exists.
-    Returns a dict with 'global_tuning' and 'file_tunings'.
+    Returns a dict with 'global_tuning', 'file_tunings', and 'page_tunings'.
     """
     tuning_file = get_tuning_file_path(input_dir)
     if not tuning_file or not os.path.isfile(tuning_file):
@@ -38,7 +38,7 @@ def load_tuning_config(input_dir):
     return None
 
 
-def save_tuning_config(input_dir, global_tuning=None, file_tunings=None):
+def save_tuning_config(input_dir, global_tuning=None, file_tunings=None, page_tunings=None):
     """
     Saves the tuning configuration to s2pot_tuning.json in the specified input directory.
     """
@@ -50,7 +50,8 @@ def save_tuning_config(input_dir, global_tuning=None, file_tunings=None):
     config_data = {
         "version": "1.0",
         "global_tuning": global_tuning or dict(DEFAULT_GLOBAL_TUNING),
-        "file_tunings": file_tunings or {}
+        "file_tunings": file_tunings or {},
+        "page_tunings": page_tunings or {}
     }
 
     try:
@@ -62,10 +63,10 @@ def save_tuning_config(input_dir, global_tuning=None, file_tunings=None):
         return False
 
 
-def get_effective_file_tuning(tuning_config, filename):
+def get_effective_file_tuning(tuning_config, filename, page_idx=None):
     """
-    Given a loaded tuning_config dict and a filename (basename),
-    returns the effective tuning parameters combining global tuning and per-file overrides.
+    Given a loaded tuning_config dict, a filename (basename), and optional page_idx (int),
+    returns the effective tuning parameters combining global, per-file, and per-page overrides.
     """
     effective = dict(DEFAULT_GLOBAL_TUNING)
 
@@ -76,8 +77,15 @@ def get_effective_file_tuning(tuning_config, filename):
     if isinstance(global_t, dict):
         effective.update(global_t)
 
-    file_t = tuning_config.get("file_tunings", {}).get(filename)
-    if isinstance(file_t, dict):
-        effective.update(file_t)
+    if filename:
+        file_t = tuning_config.get("file_tunings", {}).get(filename)
+        if isinstance(file_t, dict):
+            effective.update(file_t)
+
+        if page_idx is not None:
+            page_str = str(page_idx)
+            page_map = tuning_config.get("page_tunings", {}).get(filename, {})
+            if isinstance(page_map, dict) and page_str in page_map:
+                effective.update(page_map[page_str])
 
     return effective

@@ -987,14 +987,7 @@ class S2POTApp(ctk.CTk):
         messagebox.showinfo("Inspection Complete", f"Successfully inspected {inspected_count} file(s)!")
 
     def _check_conditional_controls(self):
-        """Enforces conditional UI rules for Word options, Document Subfolders, and Data Destination folder."""
-        if self.var_docx.get():
-            self.chk_tables.configure(state="normal")
-            self.chk_illustrations.configure(state="normal")
-        else:
-            self.chk_tables.configure(state="disabled")
-            self.chk_illustrations.configure(state="disabled")
-
+        """Enforces conditional UI rules for Document Subfolders and Data Destination folder."""
         active_doc_targets = sum([
             self.var_pdf.get(),
             self.var_docx.get()

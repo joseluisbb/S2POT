@@ -15,6 +15,7 @@ from core.config import load_config, save_config, APP_VERSION, APP_NAME
 from core.pipeline import batch_process_files, get_expected_output_files, check_input_overwrite_conflict
 from core.i18n import LANGUAGES, get_text
 from gui.tooltip import ToolTip
+from gui.file_browser import FilePageTreeBrowser, get_file_max_dpi, get_file_pages_metadata
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -109,6 +110,143 @@ class ConflictDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class OutputBrowserWindow(ctk.CTkToplevel):
+    """
+    Dedicated Output & Results Explorer Window for S2POT.
+    Allows browsing both the Documents folder and the Data folder,
+    inspecting generated files and page structures, and opening/revealing them.
+    """
+    def __init__(self, parent, docs_dir="", data_dir="", lang="pt_PT"):
+        super().__init__(parent)
+
+        self.docs_dir = docs_dir
+        self.data_dir = data_dir or docs_dir
+        self.lang = lang
+
+        self.title(self._tr("results_browser_title"))
+        self.geometry("1100x720")
+        self.minsize(850, 550)
+
+        self._build_ui()
+
+    def _tr(self, key):
+        return get_text(key, self.lang)
+
+    def _build_ui(self):
+        # Top Header Bar
+        hdr = ctk.CTkFrame(self, height=45, fg_color="#1e1e1e", corner_radius=0)
+        hdr.pack(side="top", fill="x")
+
+        ctk.CTkLabel(
+            hdr,
+            text=f"📂 {self._tr('results_browser_title')}",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color="#3498db"
+        ).pack(side="left", padx=15, pady=8)
+
+        # Tab Segmented Button: Documents vs Data
+        self.seg_folder = ctk.CTkSegmentedButton(
+            hdr,
+            values=[self._tr("tab_documents"), self._tr("tab_data")],
+            command=self._on_tab_change
+        )
+        self.seg_folder.set(self._tr("tab_documents"))
+        self.seg_folder.pack(side="right", padx=15, pady=8)
+
+        # FilePageTreeBrowser for output
+        self.browser = FilePageTreeBrowser(
+            self,
+            initial_dir=self.docs_dir,
+            lang=self.lang,
+            selectmode="extended",
+            show_path_bar=True,
+            show_filters=False,
+            columns=("Format", "Size", "Pages", "DateModified"),
+            column_widths={"Format": 110, "Size": 95, "Pages": 85, "DateModified": 140},
+            on_page_activated=lambda p, idx: self._open_selected_file()
+        )
+        self.browser.pack(fill="both", expand=True, padx=12, pady=8)
+
+        # Bottom Action Bar
+        bot_bar = ctk.CTkFrame(self, height=45, fg_color="#1e1e1e", corner_radius=0)
+        bot_bar.pack(side="bottom", fill="x")
+
+        # Action Buttons
+        self.btn_open = ctk.CTkButton(
+            bot_bar,
+            text=f"📄 {self._tr('btn_open_file')}",
+            fg_color="#2980b9",
+            hover_color="#1f618d",
+            command=self._open_selected_file
+        )
+        self.btn_open.pack(side="left", padx=10, pady=8)
+
+        self.btn_reveal = ctk.CTkButton(
+            bot_bar,
+            text=f"📁 {self._tr('btn_open_in_explorer')}",
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+            command=self._reveal_in_explorer
+        )
+        self.btn_reveal.pack(side="left", padx=6, pady=8)
+
+        self.btn_s2pit = ctk.CTkButton(
+            bot_bar,
+            text=f"🔍 {self._tr('btn_inspect_s2pit')}",
+            fg_color="#27ae60",
+            hover_color="#1e8449",
+            command=self._open_in_s2pit
+        )
+        self.btn_s2pit.pack(side="left", padx=6, pady=8)
+
+        self.btn_close = ctk.CTkButton(
+            bot_bar,
+            text="Fechar",
+            width=80,
+            fg_color="#7f8c8d",
+            hover_color="#95a5a6",
+            command=self.destroy
+        )
+        self.btn_close.pack(side="right", padx=10, pady=8)
+
+    def _on_tab_change(self, choice):
+        if choice == self._tr("tab_documents"):
+            if self.docs_dir and os.path.exists(self.docs_dir):
+                self.browser.set_folder(self.docs_dir)
+        else:
+            if self.data_dir and os.path.exists(self.data_dir):
+                self.browser.set_folder(self.data_dir)
+
+    def _open_selected_file(self):
+        files = self.browser.get_selected_files()
+        if files and os.path.exists(files[0]):
+            try:
+                os.startfile(files[0])
+            except Exception as e:
+                messagebox.showerror("Erro", f"Não foi possível abrir o ficheiro:\n{e}", parent=self)
+
+    def _reveal_in_explorer(self):
+        files = self.browser.get_selected_files()
+        target = files[0] if files and os.path.exists(files[0]) else self.browser.current_dir
+        if target and os.path.exists(target):
+            try:
+                subprocess.Popen(f'explorer /select,"{os.path.abspath(target)}"')
+            except Exception:
+                os.startfile(os.path.dirname(os.path.abspath(target)))
+
+    def _open_in_s2pit(self):
+        files = self.browser.get_selected_files()
+        target_dir = os.path.dirname(files[0]) if files and os.path.exists(files[0]) else self.browser.current_dir
+        if target_dir:
+            try:
+                subprocess.Popen([sys.executable, "s2pit_main.py", target_dir])
+            except Exception:
+                try:
+                    subprocess.Popen(["S2PIT.exe", target_dir])
+                except Exception as e:
+                    messagebox.showerror("Erro", f"Não foi possível iniciar a S2PIT:\n{e}", parent=self)
+
+
 class S2POTApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -132,6 +270,8 @@ class S2POTApp(ctk.CTk):
         self.abort_requested = False
         self.is_processing = False
         self.current_processing_file = None
+        self.loaded_pages = set()
+        self.results_window = None
 
         self._build_ui()
 
@@ -438,9 +578,19 @@ class S2POTApp(ctk.CTk):
 
         self.var_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_subfolders", False))
         self.chk_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_subfolders"), variable=self.var_subfolders, command=self._on_option_toggle)
-        self.chk_subfolders.pack(anchor="w", padx=12, pady=(4, 8))
+        self.chk_subfolders.pack(anchor="w", padx=12, pady=(4, 6))
 
-        # ------------------- BOX 4: FILE LIST TABLE (WITH CHARS COLUMN) -------------------
+        self.btn_explore_results = ctk.CTkButton(
+            self.box2,
+            text=self._tr("btn_explore_results"),
+            fg_color="#2980b9",
+            hover_color="#1f618d",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._open_results_browser
+        )
+        self.btn_explore_results.pack(fill="x", padx=10, pady=(2, 8))
+
+        # ------------------- BOX 4: FILE LIST TABLE (WITH EXPANDABLE TREE & CHARS COLUMN) -------------------
         tbl_frame = ctk.CTkFrame(self, corner_radius=8)
         tbl_frame.grid(row=2, column=0, sticky="nsew", padx=15, pady=(0, 15))
         tbl_frame.grid_columnconfigure(0, weight=1)
@@ -467,11 +617,11 @@ class S2POTApp(ctk.CTk):
         style.configure("Treeview.Heading", background="#1f1f1f", foreground="white", font=("Segoe UI", 10, "bold"))
         style.map("Treeview", background=[("selected", "#1f618d")])
 
-        # New Column Order: Filename, Format, Size, Pages, ImgRes, Chars, Status, Time
-        cols = ("Filename", "Format", "Size", "Pages", "ImgRes", "Chars", "Status", "Time")
-        self.tree = ttk.Treeview(tbl_frame, columns=cols, show="headings", selectmode="extended")
+        # Column Order: Format, Size, Pages, ImgRes, Chars, Status, Time (Filename in #0 tree column)
+        cols = ("Format", "Size", "Pages", "ImgRes", "Chars", "Status", "Time")
+        self.tree = ttk.Treeview(tbl_frame, columns=cols, show="tree headings", selectmode="extended")
 
-        self.tree.heading("Filename", text=self._tr("col_filename"), command=lambda: self._sort_table("Filename"))
+        self.tree.heading("#0", text=self._tr("col_filename"), command=lambda: self._sort_table("#0"))
         self.tree.heading("Format", text=self._tr("col_format"), command=lambda: self._sort_table("Format"))
         self.tree.heading("Size", text=self._tr("col_size"), command=lambda: self._sort_table("Size"))
         self.tree.heading("Pages", text=self._tr("col_pages"), command=lambda: self._sort_table("Pages"))
@@ -480,7 +630,7 @@ class S2POTApp(ctk.CTk):
         self.tree.heading("Status", text=self._tr("col_status"), command=lambda: self._sort_table("Status"))
         self.tree.heading("Time", text=self._tr("col_time"), command=lambda: self._sort_table("Time"))
 
-        self.tree.column("Filename", width=300, anchor="w")
+        self.tree.column("#0", width=280, minwidth=180, anchor="w")
         self.tree.column("Format", width=130, anchor="center")
         self.tree.column("Size", width=85, anchor="e")
         self.tree.column("Pages", width=65, anchor="center")
@@ -490,6 +640,7 @@ class S2POTApp(ctk.CTk):
         self.tree.column("Time", width=70, anchor="e")
 
         self.tree.bind("<<TreeviewSelect>>", self._on_table_select)
+        self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
 
         vsb = ttk.Scrollbar(tbl_frame, orient="vertical", command=self.tree.yview)
         hsb = ttk.Scrollbar(tbl_frame, orient="horizontal", command=self.tree.xview)
@@ -497,6 +648,7 @@ class S2POTApp(ctk.CTk):
 
         self.tree.grid(row=1, column=0, sticky="nsew", padx=(10, 0), pady=5)
         vsb.grid(row=1, column=1, sticky="ns", padx=(0, 10), pady=5)
+        hsb.grid(row=2, column=0, sticky="ew", padx=(10, 0), pady=(0, 5))
 
         self._attach_tooltips()
         self._check_conditional_controls()
@@ -534,6 +686,7 @@ class S2POTApp(ctk.CTk):
         ToolTip(self.data_entry, "tt_data_folder", self)
         ToolTip(self.btn_data_browse, "tt_browse", self)
         ToolTip(self.chk_subfolders, "tt_organize_subfolders", self)
+        ToolTip(self.btn_explore_results, "tt_explore_results", self)
 
         # Section 3 (Box 3: Process & OCR Engine)
         ToolTip(self.cmb_dpi, "tt_resolution_dpi", self)
@@ -584,6 +737,7 @@ class S2POTApp(ctk.CTk):
         self.data_entry.configure(placeholder_text=self._tr("data_placeholder"))
         self.btn_data_browse.configure(text=self._tr("browse"))
         self.chk_subfolders.configure(text=self._tr("organize_subfolders"))
+        self.btn_explore_results.configure(text=self._tr("btn_explore_results"))
 
         self.lbl_box3.configure(text=self._tr("box_3_process"))
         self.lbl_dpi.configure(text=self._tr("resolution_dpi"))
@@ -593,7 +747,7 @@ class S2POTApp(ctk.CTk):
         self.btn_stop.configure(text=self._tr("btn_abort"))
 
         self.lbl_box4.configure(text=self._tr("box_table"))
-        self.tree.heading("Filename", text=self._tr("col_filename"))
+        self.tree.heading("#0", text=self._tr("col_filename"))
         self.tree.heading("Format", text=self._tr("col_format"))
         self.tree.heading("Size", text=self._tr("col_size"))
         self.tree.heading("Pages", text=self._tr("col_pages"))
@@ -835,15 +989,18 @@ class S2POTApp(ctk.CTk):
         self.tree.delete(*self.tree.get_children())
         self.file_items = {}
         self.item_to_filepath = {}
+        self.loaded_pages.clear()
 
         for f in self.found_files:
             fname = os.path.basename(f)
             ext = os.path.splitext(f)[1].upper().replace(".", "")
             size_mb = os.path.getsize(f) / (1024 * 1024)
             fmt_str = ext
+            n_pages = 1
             if ext == "PDF":
                 try:
                     doc = fitz.open(f)
+                    n_pages = len(doc)
                     pdf_chars = 0
                     for page in doc:
                         t = page.get_text("text").strip()
@@ -854,13 +1011,68 @@ class S2POTApp(ctk.CTk):
                         fmt_str = f"PDF / {pdf_chars:,} chars"
                 except Exception:
                     fmt_str = "PDF"
+            elif ext in ["TIF", "TIFF"]:
+                try:
+                    timg = Image.open(f)
+                    n_pages = getattr(timg, "n_frames", 1)
+                except Exception:
+                    pass
 
-            item_id = self.tree.insert("", "end", values=(fname, fmt_str, f"{size_mb:.2f} MB", "-", "-", "-", "READY", "-"))
+            item_id = self.tree.insert("", "end", text=f"📄 {fname}", values=(fmt_str, f"{size_mb:.2f} MB", str(n_pages), "-", "-", "READY", "-"), open=False)
             self.file_items[f] = item_id
             self.item_to_filepath[item_id] = f
 
+            if n_pages > 1 or ext in ["PDF", "TIF", "TIFF"]:
+                dummy_id = f"{item_id}_dummy"
+                self.tree.insert(item_id, "end", iid=dummy_id, text="Carregando páginas...", values=())
+
         self._on_table_select(None)
         self._check_conditional_controls()
+
+    def _on_tree_open(self, event):
+        """Lazy load page details when user clicks expand (+) on a file node."""
+        for parent_id in self.tree.get_children(""):
+            if self.tree.item(parent_id, "open"):
+                fpath = self.item_to_filepath.get(parent_id)
+                if not fpath or fpath in self.loaded_pages:
+                    continue
+
+                for child in self.tree.get_children(parent_id):
+                    if child.endswith("_dummy"):
+                        self.tree.delete(child)
+
+                pages_meta = get_file_pages_metadata(fpath)
+                for pinfo in pages_meta:
+                    pidx = pinfo["page_idx"]
+                    dims_str = f"{pinfo['width']} × {pinfo['height']} px"
+                    page_dpi = f"{pinfo['dpi']} DPI"
+                    child_id = self.tree.insert(
+                        parent_id,
+                        "end",
+                        text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
+                        values=(dims_str, "-", f"Pág {pidx + 1}", page_dpi, "-", "READY", "-")
+                    )
+                    self.item_to_filepath[child_id] = fpath
+
+                self.loaded_pages.add(fpath)
+
+    def _open_results_browser(self):
+        docs_path = self.output_entry.get().strip()
+        data_path = self.data_entry.get().strip() or docs_path
+
+        if not docs_path or not os.path.exists(docs_path):
+            messagebox.showwarning("Aviso", "A pasta de documentos de saída ainda não foi configurada ou não existe.")
+            return
+
+        if self.results_window is not None and self.results_window.winfo_exists():
+            self.results_window.destroy()
+
+        self.results_window = OutputBrowserWindow(
+            self,
+            docs_dir=docs_path,
+            data_dir=data_path,
+            lang=self.current_language
+        )
 
     def _open_tuning_file(self):
         in_path = self.input_entry.get().strip()
@@ -1035,26 +1247,30 @@ class S2POTApp(ctk.CTk):
             self.sort_column = col
             self.sort_reverse = False
 
-        items = [(self.tree.set(k, col), k) for k in self.tree.get_children('')]
+        if col == "#0":
+            items = [(self.tree.item(k, "text"), k) for k in self.tree.get_children('')]
+        else:
+            items = [(self.tree.set(k, col), k) for k in self.tree.get_children('')]
 
         def parse_sort_key(val_tuple):
             val, item_id = val_tuple
+            v = str(val).replace("📄", "").strip()
             if col == "Size":
                 try:
-                    return float(val.replace("MB", "").strip())
+                    return float(v.replace("MB", "").strip())
                 except ValueError:
                     return 0.0
             elif col == "Time":
                 try:
-                    return float(val.replace("s", "").strip())
+                    return float(v.replace("s", "").strip())
                 except ValueError:
                     return 0.0
             elif col in ["Pages", "Chars", "ImgRes"]:
                 try:
-                    return int(val.replace("DPI", "").replace(",", "").strip())
+                    return int(v.replace("DPI", "").replace(",", "").strip())
                 except ValueError:
                     return 0
-            return val.lower()
+            return v.lower()
 
         items.sort(key=parse_sort_key, reverse=self.sort_reverse)
 
@@ -1079,7 +1295,7 @@ class S2POTApp(ctk.CTk):
 
         selected_ids = self.tree.selection()
         if selected_ids:
-            target_files = [self.item_to_filepath[iid] for iid in selected_ids if iid in self.item_to_filepath]
+            target_files = list(dict.fromkeys([self.item_to_filepath[iid] for iid in selected_ids if iid in self.item_to_filepath]))
         else:
             target_files = list(self.found_files)
 

@@ -35,6 +35,7 @@ hiddenimports = [
     'core.tuning_config',
     'gui.s2pit_gui',
     'gui.app_gui',
+    'gui.file_browser',
     'gui.tooltip',
 ]
 

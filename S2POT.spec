@@ -35,6 +35,7 @@ hiddenimports = [
     'core.pdf_builder',
     'core.data_exporter',
     'gui.app_gui',
+    'gui.file_browser',
     'gui.tooltip',
 ]
 

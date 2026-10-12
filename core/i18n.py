@@ -1042,6 +1042,105 @@ TRANSLATIONS = {
         "zh": "仅应用于当前页面",
         "ru": "Применить только к этой странице",
         "ar": "تطبيق على هذه الصفحة فقط"
+    },
+    "btn_explore_results": {
+        "pt_PT": "📂 Explorar Pasta de Resultados",
+        "en": "📂 Explore Results Folder",
+        "es": "📂 Explorar Carpeta de Resultados",
+        "fr": "📂 Explorer le dossier de résultats",
+        "zh": "📂 浏览结果文件夹",
+        "ru": "📂 Просмотреть результаты",
+        "ar": "📂 استعراض مجلد النتائج"
+    },
+    "results_browser_title": {
+        "pt_PT": "S2POT — Explorador de Resultados",
+        "en": "S2POT — Results Explorer",
+        "es": "S2POT — Explorador de Resultados",
+        "fr": "S2POT — Explorateur de résultats",
+        "zh": "S2POT — 结果浏览器",
+        "ru": "S2POT — Просмотр результатов",
+        "ar": "S2POT — مستعرض النتائج"
+    },
+    "tab_documents": {
+        "pt_PT": "Documentos (PDF / Word)",
+        "en": "Documents (PDF / Word)",
+        "es": "Documentos (PDF / Word)",
+        "fr": "Documents (PDF / Word)",
+        "zh": "文档 (PDF / Word)",
+        "ru": "Документы (PDF / Word)",
+        "ar": "المستندات (PDF / Word)"
+    },
+    "tab_data": {
+        "pt_PT": "Dados (TXT / Excel / JSON)",
+        "en": "Data (TXT / Excel / JSON)",
+        "es": "Datos (TXT / Excel / JSON)",
+        "fr": "Données (TXT / Excel / JSON)",
+        "zh": "数据 (TXT / Excel / JSON)",
+        "ru": "Данные (TXT / Excel / JSON)",
+        "ar": "البيانات (TXT / Excel / JSON)"
+    },
+    "btn_open_file": {
+        "pt_PT": "Abrir Ficheiro",
+        "en": "Open File",
+        "es": "Abrir Archivo",
+        "fr": "Ouvrir le fichier",
+        "zh": "打开文件",
+        "ru": "Открыть файл",
+        "ar": "فتح الملف"
+    },
+    "btn_open_in_explorer": {
+        "pt_PT": "Revelar na Pasta",
+        "en": "Reveal in Explorer",
+        "es": "Mostrar en Carpeta",
+        "fr": "Afficher dans le dossier",
+        "zh": "在资源管理器中显示",
+        "ru": "Показать в папке",
+        "ar": "إظهار في المجلد"
+    },
+    "btn_inspect_s2pit": {
+        "pt_PT": "Inspecionar na S2PIT",
+        "en": "Inspect in S2PIT",
+        "es": "Inspeccionar en S2PIT",
+        "fr": "Inspecter dans S2PIT",
+        "zh": "在 S2PIT 中检查",
+        "ru": "Проверить в S2PIT",
+        "ar": "فحص في S2PIT"
+    },
+    "btn_tune_selected_page": {
+        "pt_PT": "🔍 Afinar Página Selecionada",
+        "en": "🔍 Tune Selected Page",
+        "es": "🔍 Ajustar Página Seleccionada",
+        "fr": "🔍 Ajuster la page sélectionnée",
+        "zh": "🔍 调优选定页面",
+        "ru": "🔍 Настроить выбранную страницу",
+        "ar": "🔍 ضبط الصفحة المحددة"
+    },
+    "page_tuning_title": {
+        "pt_PT": "S2PIT — Estúdio de Afinação & Lente",
+        "en": "S2PIT — Page Tuning Studio & Lens",
+        "es": "S2PIT — Estudio de Ajuste y Lupa",
+        "fr": "S2PIT — Studio d'ajustement & Loupe",
+        "zh": "S2PIT — 页面调优工作室与放大镜",
+        "ru": "S2PIT — Студия настройки и лупа",
+        "ar": "S2PIT — استوديو الضبط والعدسة"
+    },
+    "refresh": {
+        "pt_PT": "Atualizar",
+        "en": "Refresh",
+        "es": "Actualizar",
+        "fr": "Actualiser",
+        "zh": "刷新",
+        "ru": "Обновить",
+        "ar": "تحديث"
+    },
+    "tt_explore_results": {
+        "pt_PT": "Abrir o navegador de resultados para inspecionar os ficheiros gerados",
+        "en": "Open results browser to inspect generated files",
+        "es": "Abrir el explorador de resultados para inspeccionar los archivos generados",
+        "fr": "Ouvrir l'explorateur de résultats pour inspecter les fichiers générés",
+        "zh": "打开结果浏览器以检查生成的文件",
+        "ru": "Открыть просмотр результатов для проверки созданных файлов",
+        "ar": "فتح مستعرض النتائج لفحص الملفات المنشأة"
     }
 }
 

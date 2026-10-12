@@ -10,6 +10,8 @@ from PIL import Image
 
 from core.i18n import get_text
 from core.tuning_config import load_tuning_config, get_effective_file_tuning
+from core.metadata_config import load_folder_metadata, METADATA_FILENAME
+from gui.inspection_dialog import InspectionProgressDialog
 
 
 def get_file_max_dpi(fpath):
@@ -158,8 +160,9 @@ class FilePageTreeBrowser(ctk.CTkFrame):
         self.item_to_info = {} # item_id -> {'type': 'file'|'page', 'path': str, 'page_idx': int}
         self.loaded_pages = set() # set of fpath loaded
 
-        # Active tuning config for folder (if s2pot_tuning.json exists)
+        # Active tuning and metadata configs for folder
         self.tuning_config = None
+        self.metadata_config = None
 
         # Columns definition
         self.columns = columns or ("Format", "Size", "Pages", "ImgRes", "Status")
@@ -318,6 +321,10 @@ class FilePageTreeBrowser(ctk.CTkFrame):
         # Load tuning config if present
         self.tuning_config = load_tuning_config(self.current_dir)
 
+        # Load metadata config if present
+        self.metadata_config = load_folder_metadata(self.current_dir)
+        meta_files = self.metadata_config.get("files", {}) if self.metadata_config else {}
+
         # Clear existing
         self.tree.delete(*self.tree.get_children())
         self.found_files = []
@@ -352,22 +359,30 @@ class FilePageTreeBrowser(ctk.CTkFrame):
             except Exception:
                 size_str = "-"
 
-            # Basic page count inspection
-            n_pages = 1
+            # Metadata resolution & page counts
+            f_meta = meta_files.get(fname)
+            inspected = f_meta is not None
             low_ext = os.path.splitext(fpath)[1].lower()
-            try:
-                if low_ext == ".pdf":
-                    doc = fitz.open(fpath)
-                    n_pages = len(doc)
-                    doc.close()
-                elif low_ext in [".tif", ".tiff"]:
-                    timg = Image.open(fpath)
-                    n_pages = getattr(timg, "n_frames", 1)
-            except Exception:
-                pass
 
-            max_dpi = get_file_max_dpi(fpath)
-            dpi_str = f"{max_dpi} DPI"
+            if inspected:
+                n_pages = f_meta.get("n_pages", 1)
+                max_dpi = f_meta.get("max_dpi", 300)
+                dpi_str = f"{max_dpi} DPI"
+                total_chars = f_meta.get("total_chars", 0)
+                chars_str = f"{total_chars:,}" if total_chars > 0 else "-"
+            else:
+                n_pages = 1
+                try:
+                    if low_ext == ".pdf":
+                        with fitz.open(fpath) as doc:
+                            n_pages = len(doc)
+                    elif low_ext in [".tif", ".tiff"]:
+                        with Image.open(fpath) as timg:
+                            n_pages = getattr(timg, "n_frames", 1)
+                except Exception:
+                    pass
+                dpi_str = "-"
+                chars_str = "-"
 
             # Check tuning status
             tuning_str = "-"
@@ -382,7 +397,7 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                 elif col == "Size": row_vals.append(size_str)
                 elif col == "Pages": row_vals.append(str(n_pages))
                 elif col == "ImgRes": row_vals.append(dpi_str)
-                elif col == "Chars": row_vals.append("-")
+                elif col == "Chars": row_vals.append(chars_str)
                 elif col == "Status": row_vals.append("Ready")
                 elif col == "Time": row_vals.append("-")
                 elif col == "Tuning": row_vals.append(tuning_str)
@@ -400,7 +415,9 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                 "path": fpath,
                 "filename": fname,
                 "n_pages": n_pages,
-                "page_idx": 0
+                "page_idx": 0,
+                "inspected": inspected,
+                "meta": f_meta
             }
 
             # If multi-page or PDF/TIFF, add a dummy child to enable the '+' expander
@@ -427,49 +444,108 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                     if child.endswith("_dummy"):
                         self.tree.delete(child)
 
-                # Extract and populate real pages
-                pages_meta = get_file_pages_metadata(fpath)
                 fname = info["filename"]
+                f_meta = info.get("meta")
+                if not f_meta and self.metadata_config:
+                    f_meta = self.metadata_config.get("files", {}).get(fname)
 
-                for pinfo in pages_meta:
-                    pidx = pinfo["page_idx"]
-                    dims_str = f"{pinfo['width']} × {pinfo['height']} px"
-                    page_dpi = f"{pinfo['dpi']} DPI"
+                if f_meta and "pages" in f_meta and len(f_meta["pages"]) > 0:
+                    for pinfo in f_meta["pages"]:
+                        pidx = pinfo.get("page_idx", 0)
+                        dims_str = f"{pinfo.get('width', 0)} × {pinfo.get('height', 0)} px"
+                        page_dpi = f"{pinfo.get('dpi', 300)} DPI"
 
-                    tuning_page_str = "-"
-                    if self.tuning_config:
-                        eff_page = get_effective_file_tuning(self.tuning_config, fname, pidx)
-                        tuning_page_str = f"{eff_page.get('color_mode', 'color')} ({eff_page.get('target_dpi', 150)} DPI)"
+                        tuning_page_str = "-"
+                        if self.tuning_config:
+                            eff_page = get_effective_file_tuning(self.tuning_config, fname, pidx)
+                            tuning_page_str = f"{eff_page.get('color_mode', 'color')} ({eff_page.get('target_dpi', 150)} DPI)"
 
-                    # Build child row values
-                    child_vals = []
-                    for col in self.columns:
-                        if col == "Format": child_vals.append(dims_str)
-                        elif col == "Size": child_vals.append("-")
-                        elif col == "Pages": child_vals.append(f"Pág {pidx + 1}")
-                        elif col == "ImgRes": child_vals.append(page_dpi)
-                        elif col == "Chars": child_vals.append("-")
-                        elif col == "Status": child_vals.append("Ready")
-                        elif col == "Time": child_vals.append("-")
-                        elif col == "Tuning": child_vals.append(tuning_page_str)
-                        elif col == "DateModified": child_vals.append("-")
-                        else: child_vals.append("-")
+                        child_vals = []
+                        for col in self.columns:
+                            if col == "Format": child_vals.append(dims_str)
+                            elif col == "Size": child_vals.append("-")
+                            elif col == "Pages": child_vals.append(f"Pág {pidx + 1}")
+                            elif col == "ImgRes": child_vals.append(page_dpi)
+                            elif col == "Chars": child_vals.append("-")
+                            elif col == "Status": child_vals.append("Ready")
+                            elif col == "Time": child_vals.append("-")
+                            elif col == "Tuning": child_vals.append(tuning_page_str)
+                            elif col == "DateModified": child_vals.append("-")
+                            else: child_vals.append("-")
 
-                    child_id = self.tree.insert(
-                        parent_id,
-                        "end",
-                        text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
-                        values=tuple(child_vals)
-                    )
-                    self.item_to_info[child_id] = {
-                        "type": "page",
-                        "path": fpath,
-                        "filename": fname,
-                        "page_idx": pidx,
-                        "parent_id": parent_id
-                    }
+                        child_id = self.tree.insert(
+                            parent_id,
+                            "end",
+                            text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
+                            values=tuple(child_vals)
+                        )
+                        self.item_to_info[child_id] = {
+                            "type": "page",
+                            "path": fpath,
+                            "filename": fname,
+                            "page_idx": pidx,
+                            "parent_id": parent_id
+                        }
+                else:
+                    # NOT inspected yet: simply list pages without heavy extraction!
+                    n_pages = info.get("n_pages", 1)
+                    for pidx in range(n_pages):
+                        tuning_page_str = "-"
+                        if self.tuning_config:
+                            eff_page = get_effective_file_tuning(self.tuning_config, fname, pidx)
+                            tuning_page_str = f"{eff_page.get('color_mode', 'color')} ({eff_page.get('target_dpi', 150)} DPI)"
+
+                        child_vals = []
+                        for col in self.columns:
+                            if col == "Format": child_vals.append("-")
+                            elif col == "Size": child_vals.append("-")
+                            elif col == "Pages": child_vals.append(f"Pág {pidx + 1}")
+                            elif col == "ImgRes": child_vals.append("-")
+                            elif col == "Chars": child_vals.append("-")
+                            elif col == "Status": child_vals.append("Ready")
+                            elif col == "Time": child_vals.append("-")
+                            elif col == "Tuning": child_vals.append(tuning_page_str)
+                            elif col == "DateModified": child_vals.append("-")
+                            else: child_vals.append("-")
+
+                        child_id = self.tree.insert(
+                            parent_id,
+                            "end",
+                            text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
+                            values=tuple(child_vals)
+                        )
+                        self.item_to_info[child_id] = {
+                            "type": "page",
+                            "path": fpath,
+                            "filename": fname,
+                            "page_idx": pidx,
+                            "parent_id": parent_id
+                        }
 
                 self.loaded_pages.add(fpath)
+
+    def inspect_files(self, target_files=None, on_complete=None):
+        """Runs batch inspection with progress dialog for the specified or selected/all files."""
+        if not target_files:
+            target_files = self.get_selected_files()
+        if not target_files:
+            target_files = list(self.found_files)
+
+        if not target_files or not self.current_dir:
+            return
+
+        def _on_done():
+            self.refresh()
+            if on_complete:
+                on_complete()
+
+        InspectionProgressDialog(
+            self.winfo_toplevel(),
+            file_paths=target_files,
+            folder_path=self.current_dir,
+            lang=self.lang,
+            on_complete=_on_done
+        )
 
     def _on_tree_select(self, event):
         selected_ids = self.tree.selection()

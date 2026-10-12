@@ -641,6 +641,16 @@ class S2PITApp(ctk.CTk):
         act_frame = ctk.CTkFrame(hdr_frame, fg_color="transparent")
         act_frame.pack(side="right", padx=15, pady=8)
 
+        self.btn_inspect = ctk.CTkButton(
+            act_frame,
+            text=self._tr("btn_inspect"),
+            font=ctk.CTkFont(weight="bold"),
+            fg_color="#2980b9",
+            hover_color="#1f618d",
+            command=self._on_inspect_clicked
+        )
+        self.btn_inspect.pack(side="left", padx=(0, 10))
+
         self.btn_tune = ctk.CTkButton(
             act_frame,
             text=self._tr("btn_tune_selected_page"),
@@ -727,6 +737,14 @@ class S2PITApp(ctk.CTk):
     def _on_tuning_saved(self):
         self.browser.refresh()
 
+    def _on_inspect_clicked(self):
+        selected_files = self.browser.get_selected_files()
+        targets = selected_files if selected_files else self.browser.found_files
+        if not targets:
+            messagebox.showwarning("Aviso", "Nenhum ficheiro para inspecionar.", parent=self)
+            return
+        self.browser.inspect_files(targets)
+
     def _on_language_change(self, choice):
         for k, v in LANGUAGES.items():
             if v == choice:
@@ -734,7 +752,8 @@ class S2PITApp(ctk.CTk):
                 break
         self.config_data["language"] = self.lang
         save_config(self.config_data)
-        self.lbl_title.configure(text=f"S2POT — Smart Slim Preview Tool v{APP_VERSION}")
+        self.lbl_title.configure(text=f"S2PIT — Smart Slim Preview Tool v{APP_VERSION}")
+        self.btn_inspect.configure(text=self._tr("btn_inspect"))
         self.btn_tune.configure(text=self._tr("btn_tune_selected_page"))
 
 

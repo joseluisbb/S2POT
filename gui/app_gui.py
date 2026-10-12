@@ -14,8 +14,10 @@ import pymupdf as fitz
 from core.config import load_config, save_config, APP_VERSION, APP_NAME
 from core.pipeline import batch_process_files, get_expected_output_files, check_input_overwrite_conflict
 from core.i18n import LANGUAGES, get_text
+from core.metadata_config import load_folder_metadata, save_folder_metadata, METADATA_FILENAME
 from gui.tooltip import ToolTip
 from gui.file_browser import FilePageTreeBrowser, get_file_max_dpi, get_file_pages_metadata
+from gui.inspection_dialog import InspectionProgressDialog
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -272,6 +274,7 @@ class S2POTApp(ctk.CTk):
         self.current_processing_file = None
         self.loaded_pages = set()
         self.results_window = None
+        self.folder_metadata = None
 
         self._build_ui()
 
@@ -441,16 +444,6 @@ class S2POTApp(ctk.CTk):
         self.chk_deskew = ctk.CTkCheckBox(f_opt, text=self._tr("auto_deskew"), variable=self.var_deskew)
         self.chk_deskew.pack(anchor="w", padx=8, pady=4)
 
-        self.btn_inspect = ctk.CTkButton(
-            self.box3,
-            text=self._tr("btn_inspect"),
-            fg_color="#2980b9",
-            hover_color="#1f618d",
-            font=ctk.CTkFont(weight="bold"),
-            command=self._inspect_files
-        )
-        self.btn_inspect.pack(fill="x", padx=10, pady=(4, 4))
-
         f_btns = ctk.CTkFrame(self.box3, fg_color="transparent")
         f_btns.pack(fill="x", padx=10, pady=(2, 6))
 
@@ -601,6 +594,18 @@ class S2POTApp(ctk.CTk):
         self.lbl_box4 = ctk.CTkLabel(f_tbl_hdr, text=self._tr("box_table"), font=ctk.CTkFont(size=14, weight="bold"))
         self.lbl_box4.pack(side="left")
 
+        self.btn_inspect = ctk.CTkButton(
+            f_tbl_hdr,
+            text=self._tr("btn_inspect"),
+            width=170,
+            height=28,
+            fg_color="#2980b9",
+            hover_color="#1f618d",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._inspect_files
+        )
+        self.btn_inspect.pack(side="left", padx=15)
+
         self.lbl_selected_badge = ctk.CTkLabel(f_tbl_hdr, text="Selecionados: 0 de 0", font=ctk.CTkFont(size=11, weight="bold"), text_color="#e67e22")
         self.lbl_selected_badge.pack(side="right", padx=10)
 
@@ -691,9 +696,11 @@ class S2POTApp(ctk.CTk):
         # Section 3 (Box 3: Process & OCR Engine)
         ToolTip(self.cmb_dpi, "tt_resolution_dpi", self)
         ToolTip(self.chk_deskew, "tt_auto_deskew", self)
-        ToolTip(self.btn_inspect, "tt_btn_inspect", self)
         ToolTip(self.btn_start, "tt_btn_process", self)
         ToolTip(self.btn_stop, "tt_btn_abort", self)
+
+        # Section 4 (Box 4: Input Files & Table)
+        ToolTip(self.btn_inspect, "tt_btn_inspect", self)
 
     def _on_help_toggle(self):
         self.config_data["help_mode"] = self.var_help_mode.get()
@@ -985,6 +992,10 @@ class S2POTApp(ctk.CTk):
             self.lbl_badge.configure(text=badge_text, text_color="#3498db")
             self.btn_tuning_file.configure(state="disabled", fg_color="gray50")
 
+        # Load metadata if present in folder
+        self.folder_metadata = load_folder_metadata(in_path)
+        meta_files = self.folder_metadata.get("files", {}) if self.folder_metadata else {}
+
         # Auto-populate file table immediately upon folder scan
         self.tree.delete(*self.tree.get_children())
         self.file_items = {}
@@ -996,33 +1007,37 @@ class S2POTApp(ctk.CTk):
             ext = os.path.splitext(f)[1].upper().replace(".", "")
             size_mb = os.path.getsize(f) / (1024 * 1024)
             fmt_str = ext
-            n_pages = 1
-            if ext == "PDF":
+            low_ext = os.path.splitext(f)[1].lower()
+
+            f_meta = meta_files.get(fname)
+            inspected = f_meta is not None
+
+            if inspected:
+                n_pages = f_meta.get("n_pages", 1)
+                dpi_str = f"{f_meta.get('max_dpi', 300)} DPI"
+                tc = f_meta.get("total_chars", 0)
+                chars_str = f"{tc:,}" if tc > 0 else "-"
+                if ext == "PDF" and tc > 0:
+                    fmt_str = f"PDF / {tc:,} chars"
+            else:
+                n_pages = 1
+                dpi_str = "-"
+                chars_str = "-"
                 try:
-                    doc = fitz.open(f)
-                    n_pages = len(doc)
-                    pdf_chars = 0
-                    for page in doc:
-                        t = page.get_text("text").strip()
-                        if t:
-                            pdf_chars += len(t)
-                    doc.close()
-                    if pdf_chars > 0:
-                        fmt_str = f"PDF / {pdf_chars:,} chars"
-                except Exception:
-                    fmt_str = "PDF"
-            elif ext in ["TIF", "TIFF"]:
-                try:
-                    timg = Image.open(f)
-                    n_pages = getattr(timg, "n_frames", 1)
+                    if low_ext == ".pdf":
+                        with fitz.open(f) as doc:
+                            n_pages = len(doc)
+                    elif low_ext in [".tif", ".tiff"]:
+                        with Image.open(f) as timg:
+                            n_pages = getattr(timg, "n_frames", 1)
                 except Exception:
                     pass
 
-            item_id = self.tree.insert("", "end", text=f"📄 {fname}", values=(fmt_str, f"{size_mb:.2f} MB", str(n_pages), "-", "-", "READY", "-"), open=False)
+            item_id = self.tree.insert("", "end", text=f"📄 {fname}", values=(fmt_str, f"{size_mb:.2f} MB", str(n_pages), dpi_str, chars_str, "READY", "-"), open=False)
             self.file_items[f] = item_id
             self.item_to_filepath[item_id] = f
 
-            if n_pages > 1 or ext in ["PDF", "TIF", "TIFF"]:
+            if n_pages > 1 or low_ext in [".pdf", ".tif", ".tiff"]:
                 dummy_id = f"{item_id}_dummy"
                 self.tree.insert(item_id, "end", iid=dummy_id, text="Carregando páginas...", values=())
 
@@ -1041,18 +1056,36 @@ class S2POTApp(ctk.CTk):
                     if child.endswith("_dummy"):
                         self.tree.delete(child)
 
-                pages_meta = get_file_pages_metadata(fpath)
-                for pinfo in pages_meta:
-                    pidx = pinfo["page_idx"]
-                    dims_str = f"{pinfo['width']} × {pinfo['height']} px"
-                    page_dpi = f"{pinfo['dpi']} DPI"
-                    child_id = self.tree.insert(
-                        parent_id,
-                        "end",
-                        text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
-                        values=(dims_str, "-", f"Pág {pidx + 1}", page_dpi, "-", "READY", "-")
-                    )
-                    self.item_to_filepath[child_id] = fpath
+                fname = os.path.basename(fpath)
+                f_meta = self.folder_metadata.get("files", {}).get(fname) if self.folder_metadata else None
+
+                if f_meta and "pages" in f_meta and len(f_meta["pages"]) > 0:
+                    for pinfo in f_meta["pages"]:
+                        pidx = pinfo.get("page_idx", 0)
+                        dims_str = f"{pinfo.get('width', 0)} × {pinfo.get('height', 0)} px"
+                        page_dpi = f"{pinfo.get('dpi', 300)} DPI"
+                        child_id = self.tree.insert(
+                            parent_id,
+                            "end",
+                            text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
+                            values=(dims_str, "-", f"Pág {pidx + 1}", page_dpi, "-", "READY", "-")
+                        )
+                        self.item_to_filepath[child_id] = fpath
+                else:
+                    # NOT inspected yet: simply list pages without heavy extraction!
+                    row_vals = self.tree.item(parent_id, "values")
+                    try:
+                        n_pages = int(row_vals[2]) if row_vals and len(row_vals) > 2 else 1
+                    except Exception:
+                        n_pages = 1
+                    for pidx in range(n_pages):
+                        child_id = self.tree.insert(
+                            parent_id,
+                            "end",
+                            text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
+                            values=("-", "-", f"Pág {pidx + 1}", "-", "-", "READY", "-")
+                        )
+                        self.item_to_filepath[child_id] = fpath
 
                 self.loaded_pages.add(fpath)
 
@@ -1145,58 +1178,69 @@ class S2POTApp(ctk.CTk):
         return int(round(max_dpi))
 
     def _inspect_files(self):
-        """Inspects selected/scanned input files to count pages, image DPI, and updates 'Pages', 'ImgRes', and 'Format' columns."""
+        """Inspects selected/scanned input files using non-blocking InspectionProgressDialog and persists to s2pot_metadata.json."""
         selected_ids = self.tree.selection()
         if selected_ids:
-            target_files = [self.item_to_filepath[iid] for iid in selected_ids if iid in self.item_to_filepath]
+            target_files = []
+            for iid in selected_ids:
+                fpath = self.item_to_filepath.get(iid)
+                if fpath and fpath not in target_files:
+                    target_files.append(fpath)
         else:
             target_files = list(self.found_files)
 
         if not target_files:
-            messagebox.showwarning("Warning", "No files available to inspect.")
+            messagebox.showwarning("Aviso", "Nenhum ficheiro disponível para inspecionar.", parent=self)
             return
 
-        inspected_count = 0
-        for fpath in target_files:
-            if not os.path.exists(fpath):
-                continue
+        folder = self.input_dir or os.path.dirname(target_files[0])
+        InspectionProgressDialog(
+            self,
+            file_paths=target_files,
+            folder_path=folder,
+            lang=self.current_language,
+            on_complete=self._on_inspection_finished
+        )
 
-            ext = os.path.splitext(fpath)[1].lower()
-            n_pages = 1
+    def _on_inspection_finished(self):
+        """Refreshes table and metadata cache after inspection completes."""
+        in_path = self.input_entry.get().strip() or self.input_dir
+        self.folder_metadata = load_folder_metadata(in_path)
+        if not self.folder_metadata:
+            return
 
-            try:
-                if ext == ".pdf":
-                    doc = fitz.open(fpath)
-                    n_pages = len(doc)
-                    pdf_chars = 0
-                    for page in doc:
-                        t = page.get_text("text").strip()
-                        if t:
-                            pdf_chars += len(t)
-                    doc.close()
-                    if pdf_chars > 0:
-                        fmt_str = f"PDF / {pdf_chars:,} chars"
-                    else:
-                        fmt_str = "PDF"
-                    if fpath in self.file_items:
-                        item_id = self.file_items[fpath]
-                        self.tree.set(item_id, "Format", fmt_str)
-                elif ext in [".tif", ".tiff"]:
-                    tiff_img = Image.open(fpath)
-                    n_pages = getattr(tiff_img, "n_frames", 1)
-            except Exception as e:
-                print(f"Inspection error for {fpath}: {e}")
+        meta_files = self.folder_metadata.get("files", {})
+        for fpath, item_id in self.file_items.items():
+            fname = os.path.basename(fpath)
+            if fname in meta_files:
+                f_meta = meta_files[fname]
+                n_pages = f_meta.get("n_pages", 1)
+                dpi_val = f_meta.get("max_dpi", 300)
+                tc = f_meta.get("total_chars", 0)
+                chars_str = f"{tc:,}" if tc > 0 else "-"
+                ext = os.path.splitext(fpath)[1].upper().replace(".", "")
+                fmt_str = f"PDF / {tc:,} chars" if (ext == "PDF" and tc > 0) else ext
 
-            dpi_val = self._get_file_max_dpi(fpath)
-            img_res_str = f"{dpi_val} DPI"
-
-            if fpath in self.file_items:
-                item_id = self.file_items[fpath]
                 self.tree.set(item_id, "Pages", str(n_pages))
-                self.tree.set(item_id, "ImgRes", img_res_str)
-                inspected_count += 1
+                self.tree.set(item_id, "ImgRes", f"{dpi_val} DPI")
+                self.tree.set(item_id, "Chars", chars_str)
+                self.tree.set(item_id, "Format", fmt_str)
 
-        messagebox.showinfo("Inspection Complete", f"Successfully inspected {inspected_count} file(s)!")
+                # If node is currently expanded, refresh child rows
+                if self.tree.item(item_id, "open") and fpath in self.loaded_pages:
+                    for child in self.tree.get_children(item_id):
+                        self.tree.delete(child)
+                    for pinfo in f_meta.get("pages", []):
+                        pidx = pinfo.get("page_idx", 0)
+                        dims_str = f"{pinfo.get('width', 0)} × {pinfo.get('height', 0)} px"
+                        page_dpi = f"{pinfo.get('dpi', 300)} DPI"
+                        child_id = self.tree.insert(
+                            item_id,
+                            "end",
+                            text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
+                            values=(dims_str, "-", f"Pág {pidx + 1}", page_dpi, "-", "READY", "-")
+                        )
+                        self.item_to_filepath[child_id] = fpath
 
     def _check_conditional_controls(self):
         """Enforces conditional UI rules for Document Subfolders and Data Destination folder."""

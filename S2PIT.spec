@@ -33,9 +33,11 @@ hiddenimports = [
     'core.pdf_builder',
     'core.data_exporter',
     'core.tuning_config',
+    'core.metadata_config',
     'gui.s2pit_gui',
     'gui.app_gui',
     'gui.file_browser',
+    'gui.inspection_dialog',
     'gui.tooltip',
 ]
 

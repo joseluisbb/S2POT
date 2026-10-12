@@ -408,6 +408,51 @@ TRANSLATIONS = {
         "ru": "🔍 Инспектировать файлы",
         "ar": "🔍 فحص الملفات"
     },
+    "inspect_dialog_title": {
+        "pt_PT": "Inspeção de Ficheiros",
+        "en": "File Inspection",
+        "es": "Inspección de Archivos",
+        "fr": "Inspection des fichiers",
+        "zh": "文件检查",
+        "ru": "Инспекция файлов",
+        "ar": "فحص الملفات"
+    },
+    "inspect_dialog_running": {
+        "pt_PT": "A analisar documentos e resoluções...",
+        "en": "Analyzing documents and resolutions...",
+        "es": "Analizando documentos y resoluciones...",
+        "fr": "Analyse des documents et résolutions...",
+        "zh": "正在分析文档和分辨率...",
+        "ru": "Анализ документов и разрешений...",
+        "ar": "جاري تحليل المستندات والدقة..."
+    },
+    "inspect_dialog_progress": {
+        "pt_PT": "Ficheiro {curr} de {total} ({pct}%) — {filename}",
+        "en": "File {curr} of {total} ({pct}%) — {filename}",
+        "es": "Archivo {curr} de {total} ({pct}%) — {filename}",
+        "fr": "Fichier {curr} sur {total} ({pct}%) — {filename}",
+        "zh": "文件 {curr} / {total} ({pct}%) — {filename}",
+        "ru": "Файл {curr} из {total} ({pct}%) — {filename}",
+        "ar": "الملف {curr} من {total} ({pct}%) — {filename}"
+    },
+    "inspect_dialog_done": {
+        "pt_PT": "Inspeção concluída com sucesso!",
+        "en": "Inspection completed successfully!",
+        "es": "¡Inspección completada con éxito!",
+        "fr": "Inspection terminée avec succès !",
+        "zh": "检查成功完成！",
+        "ru": "Инспекция успешно завершена!",
+        "ar": "تم الفحص بنجاح!"
+    },
+    "inspect_dialog_cancel": {
+        "pt_PT": "Cancelar",
+        "en": "Cancel",
+        "es": "Cancelar",
+        "fr": "Annuler",
+        "zh": "取消",
+        "ru": "Отмена",
+        "ar": "إلغاء"
+    },
     "btn_process": {
         "pt_PT": "Iniciar Processamento",
         "en": "Start Batch Processing",

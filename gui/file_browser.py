@@ -240,14 +240,27 @@ class FilePageTreeBrowser(ctk.CTkFrame):
         style.theme_use("clam")
         style.configure(
             "Browser.Treeview",
-            background="#2b2b2b",
-            foreground="white",
-            fieldbackground="#2b2b2b",
-            rowheight=25,
-            font=("Segoe UI", 9)
+            background="#ffffff",
+            foreground="#1a1a1a",
+            fieldbackground="#ffffff",
+            rowheight=26,
+            font=("Segoe UI", 9),
+            borderwidth=1,
+            bordercolor="#d0d0d0",
+            lightcolor="#d0d0d0",
+            darkcolor="#d0d0d0"
         )
-        style.configure("Browser.Treeview.Heading", background="#1f1f1f", foreground="white", font=("Segoe UI", 9, "bold"))
-        style.map("Browser.Treeview", background=[("selected", "#1f618d")])
+        style.configure(
+            "Browser.Treeview.Heading",
+            background="#f2f4f7",
+            foreground="#1a1a1a",
+            relief="solid",
+            borderwidth=1,
+            bordercolor="#d0d0d0",
+            font=("Segoe UI", 9, "bold")
+        )
+        style.map("Browser.Treeview", background=[("selected", "#2980b9")], foreground=[("selected", "#ffffff")])
+        style.map("Browser.Treeview.Heading", background=[("active", "#e2e6ea")])
 
         # Treeview with hierarchy column #0 for expanding files into pages
         self.tree = ttk.Treeview(
@@ -423,7 +436,7 @@ class FilePageTreeBrowser(ctk.CTkFrame):
             # If multi-page or PDF/TIFF, add a dummy child to enable the '+' expander
             if n_pages > 1 or low_ext in [".pdf", ".tif", ".tiff"]:
                 dummy_id = f"{parent_id}_dummy"
-                self.tree.insert(parent_id, "end", iid=dummy_id, text="Carregando páginas...", values=())
+                self.tree.insert(parent_id, "end", iid=dummy_id, text=self._tr("loading_pages"), values=())
 
         if self.on_selection_changed:
             self.on_selection_changed([], [])
@@ -464,7 +477,7 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                         for col in self.columns:
                             if col == "Format": child_vals.append(dims_str)
                             elif col == "Size": child_vals.append("-")
-                            elif col == "Pages": child_vals.append(f"Pág {pidx + 1}")
+                            elif col == "Pages": child_vals.append(self._tr("page_prefix").format(idx=pidx + 1))
                             elif col == "ImgRes": child_vals.append(page_dpi)
                             elif col == "Chars": child_vals.append("-")
                             elif col == "Status": child_vals.append("Ready")
@@ -499,7 +512,7 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                         for col in self.columns:
                             if col == "Format": child_vals.append("-")
                             elif col == "Size": child_vals.append("-")
-                            elif col == "Pages": child_vals.append(f"Pág {pidx + 1}")
+                            elif col == "Pages": child_vals.append(self._tr("page_prefix").format(idx=pidx + 1))
                             elif col == "ImgRes": child_vals.append("-")
                             elif col == "Chars": child_vals.append("-")
                             elif col == "Status": child_vals.append("Ready")
@@ -665,3 +678,29 @@ class FilePageTreeBrowser(ctk.CTkFrame):
         items.sort(key=parse_key, reverse=self.sort_reverse)
         for index, (_, k) in enumerate(items):
             self.tree.move(k, "", index)
+
+    def set_language(self, new_lang):
+        """Dynamically retranslates browser headers, controls, and refreshes tree."""
+        self.lang = new_lang
+        col_names = {
+            "Format": self._tr("col_format"),
+            "Size": self._tr("col_size"),
+            "Pages": self._tr("col_pages"),
+            "ImgRes": self._tr("col_img_res"),
+            "Chars": self._tr("col_chars"),
+            "Status": self._tr("col_status"),
+            "Time": self._tr("col_time"),
+            "Tuning": "Tuning / Calibração",
+            "DateModified": "Data Modificação"
+        }
+        self.tree.heading("#0", text=self._tr("col_filename"))
+        for col in self.columns:
+            self.tree.heading(col, text=col_names.get(col, col))
+        if hasattr(self, "lbl_path"):
+            self.lbl_path.configure(text=self._tr("input_folder"))
+        if hasattr(self, "btn_browse"):
+            self.btn_browse.configure(text=self._tr("browse"))
+        if hasattr(self, "btn_refresh"):
+            self.btn_refresh.configure(text=f"⟳ {self._tr('refresh')}")
+        self.refresh()
+

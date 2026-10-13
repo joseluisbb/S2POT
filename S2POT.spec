@@ -40,6 +40,7 @@ hiddenimports = [
     'gui.file_browser',
     'gui.inspection_dialog',
     'gui.tooltip',
+    'gui.s2pit_gui',
 ]
 
 a = Analysis(

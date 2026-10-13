@@ -501,20 +501,29 @@ TRANSLATIONS = {
     "col_format": {
         "pt_PT": "Formato",
         "en": "Format",
-        "es": "Format",
+        "es": "Formato",
         "fr": "Format",
         "zh": "格式",
         "ru": "Формат",
         "ar": "الصيغة"
     },
+    "col_pages_chars": {
+        "pt_PT": "Páginas / Chars",
+        "en": "Pages / Chars",
+        "es": "Páginas / Caract.",
+        "fr": "Pages / Caract.",
+        "zh": "页数 / 字符",
+        "ru": "Страницы / Симв.",
+        "ar": "الصفحات / الحروف"
+    },
     "col_size": {
-        "pt_PT": "Tamanho (MB)",
-        "en": "Size (MB)",
-        "es": "Tamaño (MB)",
-        "fr": "Taille (Mo)",
-        "zh": "大小 (MB)",
-        "ru": "Размер (МБ)",
-        "ar": "الحجم (ميجابايت)"
+        "pt_PT": "Tamanho (Antes / Depois)",
+        "en": "Size (Before / After)",
+        "es": "Tamaño (Antes / Después)",
+        "fr": "Taille (Avant / Après)",
+        "zh": "大小 (前 / 后)",
+        "ru": "Размер (До / После)",
+        "ar": "الحجم (قبل / بعد)"
     },
     "col_pages": {
         "pt_PT": "Páginas",
@@ -526,13 +535,13 @@ TRANSLATIONS = {
         "ar": "الصفحات"
     },
     "col_img_res": {
-        "pt_PT": "Res. Img.",
-        "en": "Img. Res.",
-        "es": "Res. Img.",
-        "fr": "Rés. Img.",
-        "zh": "图像分辨率",
-        "ru": "Разреш. Изобр.",
-        "ar": "دقة الصورة"
+        "pt_PT": "Res. Img. (Orig. / Alvo)",
+        "en": "Img. Res. (Orig. / Target)",
+        "es": "Res. Img. (Orig. / Calib.)",
+        "fr": "Rés. Img. (Orig. / Cible)",
+        "zh": "图像分辨率 (原始 / 目标)",
+        "ru": "Разреш. Изобр. (Исход. / Цель)",
+        "ar": "دقة الصورة (الأصل / الهدف)"
     },
     "col_chars": {
         "pt_PT": "Caracteres",
@@ -560,6 +569,114 @@ TRANSLATIONS = {
         "zh": "耗时 (秒)",
         "ru": "Время (с)",
         "ar": "الوقت (ث)"
+    },
+    "tree_item_page": {
+        "pt_PT": "Página {idx}",
+        "en": "Page {idx}",
+        "es": "Página {idx}",
+        "fr": "Page {idx}",
+        "zh": "第 {idx} 页",
+        "ru": "Страница {idx}",
+        "ar": "الصفحة {idx}"
+    },
+    "page_prefix": {
+        "pt_PT": "Pág {idx}",
+        "en": "Page {idx}",
+        "es": "Pág {idx}",
+        "fr": "Page {idx}",
+        "zh": "页 {idx}",
+        "ru": "Стр {idx}",
+        "ar": "ص {idx}"
+    },
+    "loading_pages": {
+        "pt_PT": "A carregar páginas...",
+        "en": "Loading pages...",
+        "es": "Cargando páginas...",
+        "fr": "Chargement des pages...",
+        "zh": "正在加载页面...",
+        "ru": "Загрузка страниц...",
+        "ar": "جاري تحميل الصفحات..."
+    },
+    "status_processing": {
+        "pt_PT": "A processar...",
+        "en": "Processing...",
+        "es": "Procesando...",
+        "fr": "Traitement...",
+        "zh": "正在处理...",
+        "ru": "Обработка...",
+        "ar": "جاري المعالجة..."
+    },
+    "status_ready": {
+        "pt_PT": "Pronto",
+        "en": "Ready",
+        "es": "Listo",
+        "fr": "Prêt",
+        "zh": "就绪",
+        "ru": "Готово",
+        "ar": "جاهز"
+    },
+    "color_short_color": {
+        "pt_PT": "cor",
+        "en": "color",
+        "es": "color",
+        "fr": "couleur",
+        "zh": "彩色",
+        "ru": "цвет",
+        "ar": "ألوان"
+    },
+    "color_short_gray": {
+        "pt_PT": "cinzento",
+        "en": "gray",
+        "es": "gris",
+        "fr": "gris",
+        "zh": "灰度",
+        "ru": "серый",
+        "ar": "رمادي"
+    },
+    "color_short_bw": {
+        "pt_PT": "pb",
+        "en": "bw",
+        "es": "bn",
+        "fr": "nb",
+        "zh": "黑白",
+        "ru": "чб",
+        "ar": "أبيض/أسود"
+    },
+    "btn_tune_page": {
+        "pt_PT": "🔍 Afinar Página",
+        "en": "🔍 Tune Page",
+        "es": "🔍 Ajustar Página",
+        "fr": "🔍 Ajuster la page",
+        "zh": "🔍 调优页面",
+        "ru": "🔍 Настроить страницу",
+        "ar": "🔍 ضبط الصفحة"
+    },
+    "tt_btn_tune_selected_page": {
+        "pt_PT": "Abre a página selecionada na janela de calibração para afinar cor, resolução e qualidade.",
+        "en": "Opens the selected page in the tuning studio window to adjust color, resolution, and quality.",
+        "es": "Abre la página seleccionada en la ventana de ajuste para calibrar color, resolución y calidad.",
+        "fr": "Ouvre la page sélectionnée dans le studio d'ajustement pour régler la couleur, la résolution et la qualité.",
+        "zh": "在调优窗口中打开选定页面以调整颜色、分辨率和质量。",
+        "ru": "Открывает выбранную страницу в окне настройки для регулировки цвета, разрешения и качества.",
+        "ar": "يفتح الصفحة المحددة في نافذة الضبط لضبط اللون والدقة والجودة."
+    },
+    "selected_badge": {
+        "pt_PT": "Selecionados: {sel} de {tot}",
+        "en": "Selected: {sel} of {tot}",
+        "es": "Seleccionados: {sel} de {tot}",
+        "fr": "Sélectionnés: {sel} sur {tot}",
+        "zh": "已选: {sel} / {tot}",
+        "ru": "Выбрано: {sel} из {tot}",
+        "ar": "المحدد: {sel} من {tot}"
+    },
+    "no_page_selected_msg": {
+        "pt_PT": "Por favor, selecione uma página ou ficheiro na tabela para afinar.",
+        "en": "Please select a page or file in the table to tune.",
+        "es": "Por favor, seleccione una página o archivo en la tabla para calibrar.",
+        "fr": "Veuillez sélectionner une page ou un fichier dans le tableau à ajuster.",
+        "zh": "请在表格中选择要调优的页面或文件。",
+        "ru": "Пожалуйста, выберите страницу или файл в таблице для настройки.",
+        "ar": "يرجى تحديد صفحة أو ملف في الجدول للضبط."
     },
     "status_interrupted": {
         "pt_PT": "INTERROMPIDO",

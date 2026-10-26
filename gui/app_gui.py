@@ -19,7 +19,7 @@ from core.tuning_config import load_tuning_config, get_effective_file_tuning
 from gui.tooltip import ToolTip
 from gui.file_browser import FilePageTreeBrowser, get_file_max_dpi, get_file_pages_metadata
 from gui.inspection_dialog import InspectionProgressDialog
-from gui.s2pit_gui import S2PITPageTuningWindow
+from gui.s2pit_gui import S2PITPageTuningWindow, S2POTPageViewerWindow
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -409,21 +409,21 @@ class S2POTApp(ctk.CTk):
 
         f_cb1 = ctk.CTkFrame(fmt_frame, fg_color="transparent")
         f_cb1.pack(fill="x", padx=6, pady=3)
-        self.chk_pdf = ctk.CTkCheckBox(f_cb1, text="PDF (0)", variable=self.var_filter_pdf, command=self._scan_input_folder)
-        self.chk_pdf.pack(side="left", padx=4)
-        self.chk_tiff = ctk.CTkCheckBox(f_cb1, text="TIFF (0)", variable=self.var_filter_tiff, command=self._scan_input_folder)
-        self.chk_tiff.pack(side="left", padx=4)
-        self.chk_jpg = ctk.CTkCheckBox(f_cb1, text="JPG (0)", variable=self.var_filter_jpg, command=self._scan_input_folder)
-        self.chk_jpg.pack(side="left", padx=4)
+        self.chk_filter_pdf = ctk.CTkCheckBox(f_cb1, text="PDF", variable=self.var_filter_pdf, command=self._scan_input_folder)
+        self.chk_filter_pdf.pack(side="left", padx=4)
+        self.chk_filter_tiff = ctk.CTkCheckBox(f_cb1, text="TIFF", variable=self.var_filter_tiff, command=self._scan_input_folder)
+        self.chk_filter_tiff.pack(side="left", padx=4)
+        self.chk_filter_jpg = ctk.CTkCheckBox(f_cb1, text="JPG", variable=self.var_filter_jpg, command=self._scan_input_folder)
+        self.chk_filter_jpg.pack(side="left", padx=4)
 
         f_cb2 = ctk.CTkFrame(fmt_frame, fg_color="transparent")
         f_cb2.pack(fill="x", padx=6, pady=(0, 3))
-        self.chk_png = ctk.CTkCheckBox(f_cb2, text="PNG (0)", variable=self.var_filter_png, command=self._scan_input_folder)
-        self.chk_png.pack(side="left", padx=4)
-        self.chk_bmp = ctk.CTkCheckBox(f_cb2, text="BMP (0)", variable=self.var_filter_bmp, command=self._scan_input_folder)
-        self.chk_bmp.pack(side="left", padx=4)
-        self.chk_webp = ctk.CTkCheckBox(f_cb2, text="WEBP (0)", variable=self.var_filter_webp, command=self._scan_input_folder)
-        self.chk_webp.pack(side="left", padx=4)
+        self.chk_filter_png = ctk.CTkCheckBox(f_cb2, text="PNG", variable=self.var_filter_png, command=self._scan_input_folder)
+        self.chk_filter_png.pack(side="left", padx=4)
+        self.chk_filter_bmp = ctk.CTkCheckBox(f_cb2, text="BMP", variable=self.var_filter_bmp, command=self._scan_input_folder)
+        self.chk_filter_bmp.pack(side="left", padx=4)
+        self.chk_filter_webp = ctk.CTkCheckBox(f_cb2, text="WEBP", variable=self.var_filter_webp, command=self._scan_input_folder)
+        self.chk_filter_webp.pack(side="left", padx=4)
 
         # ====== BOX 3: PROCESS & OCR ENGINE (BELOW BOX 1) ======
         self.box3 = ctk.CTkFrame(left_panel, corner_radius=8)
@@ -506,8 +506,13 @@ class S2POTApp(ctk.CTk):
         self.btn_out_browse = ctk.CTkButton(f_out, text=self._tr("browse"), width=75, command=self._browse_output)
         self.btn_out_browse.pack(side="right")
 
+        # Organize Documents Checkbox placed directly below documents folder path
+        self.var_doc_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_doc_subfolders", False))
+        self.chk_doc_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_doc_subfolders"), variable=self.var_doc_subfolders, command=self._on_option_toggle)
+        self.chk_doc_subfolders.pack(anchor="w", padx=12, pady=(2, 4))
+
         doc_frame = ctk.CTkFrame(self.box2, fg_color=("gray95", "#242424"), corner_radius=6)
-        doc_frame.pack(fill="x", padx=10, pady=(4, 6))
+        doc_frame.pack(fill="x", padx=10, pady=(2, 6))
 
         self.var_pdf = ctk.BooleanVar(value=self.config_data.get("export_pdf", True))
         self.var_docx = ctk.BooleanVar(value=self.config_data.get("export_docx", True))
@@ -518,10 +523,6 @@ class S2POTApp(ctk.CTk):
         self.chk_docx = ctk.CTkCheckBox(doc_frame, text=self._tr("export_docx"), variable=self.var_docx, command=self._on_option_toggle)
         self.chk_docx.pack(anchor="w", padx=8, pady=3)
 
-        self.var_doc_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_doc_subfolders", False))
-        self.chk_doc_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_doc_subfolders"), variable=self.var_doc_subfolders, command=self._on_option_toggle)
-        self.chk_doc_subfolders.pack(anchor="w", padx=12, pady=(2, 6))
-
         # Subsection 2: Data
         self.lbl_sub_data = ctk.CTkLabel(self.box2, text=f"• {self._tr('sub_data')}", font=ctk.CTkFont(size=12, weight="bold"), text_color="#e67e22")
         self.lbl_sub_data.pack(anchor="w", padx=12, pady=(4, 2))
@@ -531,13 +532,18 @@ class S2POTApp(ctk.CTk):
         self.lbl_data_path.pack(anchor="w", padx=12, pady=(2, 1))
 
         f_data = ctk.CTkFrame(self.box2, fg_color="transparent")
-        f_data.pack(fill="x", padx=10, pady=(0, 4))
+        f_data.pack(fill="x", padx=10, pady=(0, 2))
         self.data_entry = ctk.CTkEntry(f_data, placeholder_text=self._tr("data_placeholder"))
         self.data_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.data_entry.bind("<Return>", self._on_data_entry_change)
         self.data_entry.bind("<FocusOut>", self._on_data_entry_change)
         self.btn_data_browse = ctk.CTkButton(f_data, text=self._tr("browse"), width=75, command=self._browse_data)
         self.btn_data_browse.pack(side="right")
+
+        # Organize Data Checkbox placed directly below data folder path
+        self.var_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_subfolders", False))
+        self.chk_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_subfolders"), variable=self.var_subfolders, command=self._on_option_toggle)
+        self.chk_subfolders.pack(anchor="w", padx=12, pady=(2, 4))
 
         data_fmt_frame = ctk.CTkFrame(self.box2, fg_color=("gray95", "#242424"), corner_radius=6)
         data_fmt_frame.pack(fill="x", padx=10, pady=2)
@@ -575,10 +581,6 @@ class S2POTApp(ctk.CTk):
         self.chk_txt_from_pdf.pack(side="left", padx=4)
         self.chk_docx_from_pdf = ctk.CTkCheckBox(f_data_cb3, text=self._tr("export_docx_from_pdf"), variable=self.var_docx_from_pdf, command=self._on_option_toggle)
         self.chk_docx_from_pdf.pack(side="left", padx=4)
-
-        self.var_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_subfolders", False))
-        self.chk_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_subfolders"), variable=self.var_subfolders, command=self._on_option_toggle)
-        self.chk_subfolders.pack(anchor="w", padx=12, pady=(4, 6))
 
         self.btn_explore_results = ctk.CTkButton(
             self.box2,
@@ -674,8 +676,12 @@ class S2POTApp(ctk.CTk):
         self.tree.column("Status", width=110, anchor="center")
 
         self.tree.tag_configure("even", background="#ffffff")
-        self.tree.tag_configure("odd", background="#f9fafb")
-        self.tree.tag_configure("page_row", background="#f1f5f9")
+        self.tree.tag_configure("odd", background="#f8f9fa")
+        self.tree.tag_configure("page_even", background="#f0f4f8")
+        self.tree.tag_configure("page_odd", background="#e7eff7")
+        self.tree.tag_configure("page_row", background="#f0f4f8")
+
+        self._setup_tree_gridlines()
 
         self.tree.bind("<<TreeviewSelect>>", self._on_table_select)
         self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
@@ -693,6 +699,35 @@ class S2POTApp(ctk.CTk):
         self._attach_tooltips()
         self._check_conditional_controls()
 
+    def _setup_tree_gridlines(self):
+        cols = ("Format", "PagesChars", "Size", "ImgRes", "Status")
+        all_cols = ["#0"] + list(cols)[:-1]
+        self._tree_grid_dividers = []
+        for _ in all_cols:
+            div = tk.Frame(self.tree, width=1, bg="#dcdcdc")
+            self._tree_grid_dividers.append(div)
+
+        def _update_dividers(event=None):
+            try:
+                tot = sum(self.tree.column(c, "width") for c in ["#0"] + list(cols))
+                off = int(self.tree.xview()[0] * tot)
+                cx = 0
+                for i, c in enumerate(all_cols):
+                    cx += self.tree.column(c, "width")
+                    px = cx - off
+                    div = self._tree_grid_dividers[i]
+                    if 0 <= px <= self.tree.winfo_width():
+                        div.place(x=px, y=0, relheight=1.0)
+                    else:
+                        div.place_forget()
+            except Exception:
+                pass
+
+        self._update_gridlines_fn = _update_dividers
+        self.tree.bind("<Configure>", _update_dividers, add="+")
+        self.tree.bind("<ButtonRelease-1>", _update_dividers, add="+")
+        self.tree.bind("<B1-Motion>", _update_dividers, add="+")
+
     def _attach_tooltips(self):
         # Header controls
         ToolTip(self.chk_help, "tt_help_mode", self)
@@ -701,12 +736,12 @@ class S2POTApp(ctk.CTk):
         # Section 1 (Box 1: Input & Formats)
         ToolTip(self.input_entry, "tt_input_folder", self)
         ToolTip(self.btn_in_browse, "tt_browse", self)
-        ToolTip(self.chk_pdf, "tt_filter_pdf", self)
-        ToolTip(self.chk_tiff, "tt_filter_tiff", self)
-        ToolTip(self.chk_jpg, "tt_filter_jpg", self)
-        ToolTip(self.chk_png, "tt_filter_png", self)
-        ToolTip(self.chk_bmp, "tt_filter_bmp", self)
-        ToolTip(self.chk_webp, "tt_filter_webp", self)
+        ToolTip(self.chk_filter_pdf, "tt_filter_pdf", self)
+        ToolTip(self.chk_filter_tiff, "tt_filter_tiff", self)
+        ToolTip(self.chk_filter_jpg, "tt_filter_jpg", self)
+        ToolTip(self.chk_filter_png, "tt_filter_png", self)
+        ToolTip(self.chk_filter_bmp, "tt_filter_bmp", self)
+        ToolTip(self.chk_filter_webp, "tt_filter_webp", self)
 
         # Section 2 (Box 2: Output Documents & Data)
         ToolTip(self.output_entry, "tt_docs_folder", self)
@@ -890,21 +925,12 @@ class S2POTApp(ctk.CTk):
         self.btn_in_browse.configure(text=self._tr("browse"))
         self.btn_tuning_file.configure(text=self._tr("btn_tuning_file"))
 
-        # Re-render file filter counts
-        in_path = self.input_entry.get().strip()
-        c_pdf = (len(glob.glob(os.path.join(in_path, "*.pdf"))) + len(glob.glob(os.path.join(in_path, "*.PDF")))) if (in_path and os.path.exists(in_path)) else 0
-        c_tiff = (len(glob.glob(os.path.join(in_path, "*.tif"))) + len(glob.glob(os.path.join(in_path, "*.tiff"))) + len(glob.glob(os.path.join(in_path, "*.TIF"))) + len(glob.glob(os.path.join(in_path, "*.TIFF")))) if (in_path and os.path.exists(in_path)) else 0
-        c_jpg = (len(glob.glob(os.path.join(in_path, "*.jpg"))) + len(glob.glob(os.path.join(in_path, "*.jpeg"))) + len(glob.glob(os.path.join(in_path, "*.JPG"))) + len(glob.glob(os.path.join(in_path, "*.JPEG")))) if (in_path and os.path.exists(in_path)) else 0
-        c_png = (len(glob.glob(os.path.join(in_path, "*.png"))) + len(glob.glob(os.path.join(in_path, "*.PNG")))) if (in_path and os.path.exists(in_path)) else 0
-        c_bmp = (len(glob.glob(os.path.join(in_path, "*.bmp"))) + len(glob.glob(os.path.join(in_path, "*.BMP")))) if (in_path and os.path.exists(in_path)) else 0
-        c_webp = (len(glob.glob(os.path.join(in_path, "*.webp"))) + len(glob.glob(os.path.join(in_path, "*.WEBP")))) if (in_path and os.path.exists(in_path)) else 0
-
-        self.chk_pdf.configure(text=f"{self._tr('filter_pdf')} ({c_pdf})")
-        self.chk_tiff.configure(text=f"{self._tr('filter_tiff')} ({c_tiff})")
-        self.chk_jpg.configure(text=f"{self._tr('filter_jpg')} ({c_jpg})")
-        self.chk_png.configure(text=f"{self._tr('filter_png')} ({c_png})")
-        self.chk_bmp.configure(text=f"{self._tr('filter_bmp')} ({c_bmp})")
-        self.chk_webp.configure(text=f"{self._tr('filter_webp')} ({c_webp})")
+        self.chk_filter_pdf.configure(text="PDF")
+        self.chk_filter_tiff.configure(text="TIFF")
+        self.chk_filter_jpg.configure(text="JPG")
+        self.chk_filter_png.configure(text="PNG")
+        self.chk_filter_bmp.configure(text="BMP")
+        self.chk_filter_webp.configure(text="WEBP")
 
         self.lbl_box2.configure(text=self._tr("box_2_output"))
         self.lbl_sub_docs.configure(text=f"• {self._tr('sub_documents')}")
@@ -1132,20 +1158,7 @@ class S2POTApp(ctk.CTk):
             self.lbl_badge.configure(text=self._tr("found_files_badge").format(count=0))
             return
 
-        # Calculate exact per-format counts in input folder
-        c_pdf = len(glob.glob(os.path.join(in_path, "*.pdf"))) + len(glob.glob(os.path.join(in_path, "*.PDF")))
-        c_tiff = len(glob.glob(os.path.join(in_path, "*.tif"))) + len(glob.glob(os.path.join(in_path, "*.tiff"))) + len(glob.glob(os.path.join(in_path, "*.TIF"))) + len(glob.glob(os.path.join(in_path, "*.TIFF")))
-        c_jpg = len(glob.glob(os.path.join(in_path, "*.jpg"))) + len(glob.glob(os.path.join(in_path, "*.jpeg"))) + len(glob.glob(os.path.join(in_path, "*.JPG"))) + len(glob.glob(os.path.join(in_path, "*.JPEG")))
-        c_png = len(glob.glob(os.path.join(in_path, "*.png"))) + len(glob.glob(os.path.join(in_path, "*.PNG")))
-        c_bmp = len(glob.glob(os.path.join(in_path, "*.bmp"))) + len(glob.glob(os.path.join(in_path, "*.BMP")))
-        c_webp = len(glob.glob(os.path.join(in_path, "*.webp"))) + len(glob.glob(os.path.join(in_path, "*.WEBP")))
 
-        self.chk_pdf.configure(text=f"{self._tr('filter_pdf')} ({c_pdf})")
-        self.chk_tiff.configure(text=f"{self._tr('filter_tiff')} ({c_tiff})")
-        self.chk_jpg.configure(text=f"{self._tr('filter_jpg')} ({c_jpg})")
-        self.chk_png.configure(text=f"{self._tr('filter_png')} ({c_png})")
-        self.chk_bmp.configure(text=f"{self._tr('filter_bmp')} ({c_bmp})")
-        self.chk_webp.configure(text=f"{self._tr('filter_webp')} ({c_webp})")
 
         exts = []
         if self.var_filter_pdf.get():
@@ -1191,7 +1204,7 @@ class S2POTApp(ctk.CTk):
         self.item_to_info = {}
         self.loaded_pages.clear()
 
-        for f in self.found_files:
+        for f_idx, f in enumerate(self.found_files):
             fname = os.path.basename(f)
             ext = os.path.splitext(f)[1].upper().replace(".", "")
             size_mb = os.path.getsize(f) / (1024 * 1024)
@@ -1242,14 +1255,45 @@ class S2POTApp(ctk.CTk):
             }
 
             row_vals = self._format_file_row_values(finfo)
-            item_id = self.tree.insert("", "end", text=f"📄 {fname}", values=row_vals, open=False)
+            file_tag = "even" if f_idx % 2 == 0 else "odd"
+            item_id = self.tree.insert("", "end", text=f"📄 {fname}", values=row_vals, open=False, tags=(file_tag,))
             self.file_items[f] = item_id
             self.item_to_filepath[item_id] = f
             self.item_to_info[item_id] = finfo
 
-            if n_pages > 1 or low_ext in [".pdf", ".tif", ".tiff"]:
+            # If inspected metadata with pages is already available, pre-insert immediately for instant 0ms expansion
+            if f_meta and "pages" in f_meta and len(f_meta["pages"]) > 0:
+                for p_idx, pinfo in enumerate(f_meta["pages"]):
+                    pidx = pinfo.get("page_idx", p_idx)
+                    ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
+                    cinfo = {
+                        "type": "page",
+                        "filepath": f,
+                        "filename": fname,
+                        "page_idx": pidx,
+                        "width": pinfo.get("width"),
+                        "height": pinfo.get("height"),
+                        "chars": pinfo.get("chars"),
+                        "orig_dpi": pinfo.get("dpi"),
+                        "orig_cmode": pinfo.get("color_mode"),
+                        "target_dpi": ptune.get("target_dpi"),
+                        "target_cmode": ptune.get("color_mode"),
+                        "status": "",
+                        "elapsed": 0.0
+                    }
+                    page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
+                    child_vals = self._format_page_row_values(cinfo)
+                    ptag = "page_even" if p_idx % 2 == 0 else "page_odd"
+                    child_id = self.tree.insert(item_id, "end", text=page_label, values=child_vals, tags=(ptag,))
+                    self.item_to_filepath[child_id] = f
+                    self.item_to_info[child_id] = cinfo
+                self.loaded_pages.add(f)
+            elif n_pages > 1 or low_ext in [".pdf", ".tif", ".tiff"]:
                 dummy_id = f"{item_id}_dummy"
                 self.tree.insert(item_id, "end", iid=dummy_id, text=self._tr("loading_pages"), values=())
+
+        if hasattr(self, "_update_gridlines_fn"):
+            self.after(50, self._update_gridlines_fn)
 
         self._on_table_select(None)
         self._check_conditional_controls()
@@ -1290,7 +1334,8 @@ class S2POTApp(ctk.CTk):
                         }
                         page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
                         child_vals = self._format_page_row_values(cinfo)
-                        child_id = self.tree.insert(parent_id, "end", text=page_label, values=child_vals)
+                        ptag = "page_even" if pidx % 2 == 0 else "page_odd"
+                        child_id = self.tree.insert(parent_id, "end", text=page_label, values=child_vals, tags=(ptag,))
                         self.item_to_filepath[child_id] = fpath
                         self.item_to_info[child_id] = cinfo
                 else:
@@ -1316,7 +1361,8 @@ class S2POTApp(ctk.CTk):
                         }
                         page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
                         child_vals = self._format_page_row_values(cinfo)
-                        child_id = self.tree.insert(parent_id, "end", text=page_label, values=child_vals)
+                        ptag = "page_even" if pidx % 2 == 0 else "page_odd"
+                        child_id = self.tree.insert(parent_id, "end", text=page_label, values=child_vals, tags=(ptag,))
                         self.item_to_filepath[child_id] = fpath
                         self.item_to_info[child_id] = cinfo
 
@@ -1344,7 +1390,7 @@ class S2POTApp(ctk.CTk):
             self.active_studio.focus_force()
             return
 
-        self.active_studio = S2PITPageTuningWindow(
+        self.active_studio = S2POTPageViewerWindow(
             self,
             file_path=fpath,
             page_idx=page_idx,
@@ -1367,7 +1413,8 @@ class S2POTApp(ctk.CTk):
         if info.get("type") == "page":
             self._open_studio_for(info["filepath"], info.get("page_idx", 0))
         elif info.get("type") == "file":
-            self._open_studio_for(info["filepath"], 0)
+            is_open = self.tree.item(item_id, "open")
+            self.tree.item(item_id, open=not is_open)
 
     def _on_tuning_saved(self):
         in_path = self.input_entry.get().strip() or self.input_dir
@@ -1504,7 +1551,7 @@ class S2POTApp(ctk.CTk):
 
     def _on_inspection_finished(self):
         """Refreshes table and metadata cache after inspection completes."""
-        in_path = self.input_entry.get().strip() or self.input_dir
+        in_path = os.path.normpath((self.input_entry.get().strip() or self.input_dir or "").strip('"\''))
         self.folder_metadata = load_folder_metadata(in_path)
         if not self.folder_metadata:
             return
@@ -1521,37 +1568,42 @@ class S2POTApp(ctk.CTk):
                 finfo["total_chars"] = f_meta.get("total_chars", 0)
                 self.item_to_info[item_id] = finfo
 
-                # If node is currently expanded, refresh child rows
-                if self.tree.item(item_id, "open") and fpath in self.loaded_pages:
-                    for child in self.tree.get_children(item_id):
-                        if child in self.item_to_info:
-                            del self.item_to_info[child]
-                        self.tree.delete(child)
-                    for pinfo in f_meta.get("pages", []):
-                        pidx = pinfo.get("page_idx", 0)
-                        ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
-                        cinfo = {
-                            "type": "page",
-                            "filepath": fpath,
-                            "filename": fname,
-                            "page_idx": pidx,
-                            "width": pinfo.get("width"),
-                            "height": pinfo.get("height"),
-                            "chars": pinfo.get("chars"),
-                            "orig_dpi": pinfo.get("dpi"),
-                            "orig_cmode": pinfo.get("color_mode"),
-                            "target_dpi": ptune.get("target_dpi"),
-                            "target_cmode": ptune.get("color_mode"),
-                            "status": "",
-                            "elapsed": 0.0
-                        }
-                        page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
-                        child_vals = self._format_page_row_values(cinfo)
-                        child_id = self.tree.insert(item_id, "end", text=page_label, values=child_vals)
-                        self.item_to_filepath[child_id] = fpath
-                        self.item_to_info[child_id] = cinfo
+                # Pre-insert all page rows immediately so expanding the node is 100% instantaneous (0ms)
+                for child in self.tree.get_children(item_id):
+                    if child in self.item_to_info:
+                        del self.item_to_info[child]
+                    self.tree.delete(child)
+
+                for p_idx, pinfo in enumerate(f_meta.get("pages", [])):
+                    pidx = pinfo.get("page_idx", p_idx)
+                    ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
+                    cinfo = {
+                        "type": "page",
+                        "filepath": fpath,
+                        "filename": fname,
+                        "page_idx": pidx,
+                        "width": pinfo.get("width"),
+                        "height": pinfo.get("height"),
+                        "chars": pinfo.get("chars"),
+                        "orig_dpi": pinfo.get("dpi"),
+                        "orig_cmode": pinfo.get("color_mode"),
+                        "target_dpi": ptune.get("target_dpi"),
+                        "target_cmode": ptune.get("color_mode"),
+                        "status": "",
+                        "elapsed": 0.0
+                    }
+                    page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
+                    child_vals = self._format_page_row_values(cinfo)
+                    ptag = "page_even" if p_idx % 2 == 0 else "page_odd"
+                    child_id = self.tree.insert(item_id, "end", text=page_label, values=child_vals, tags=(ptag,))
+                    self.item_to_filepath[child_id] = fpath
+                    self.item_to_info[child_id] = cinfo
+
+                self.loaded_pages.add(fpath)
 
         self._refresh_all_row_displays()
+        if hasattr(self, "_update_gridlines_fn"):
+            self.after(50, self._update_gridlines_fn)
 
     def _check_conditional_controls(self):
         """Enforces conditional UI rules for Document Subfolders and Data Destination folder."""

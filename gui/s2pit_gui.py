@@ -45,9 +45,14 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
         self.lang = lang
         self.on_save_callback = on_save_callback
 
-        self.title(f"S2PIT — {self.filename} ({self._tr('tree_item_page').format(idx=self.page_idx + 1)})")
-        self.geometry("1200x820")
-        self.minsize(980, 680)
+        self.title(f"{self._tr('page_viewer_title')} — {self.filename} ({self._tr('tree_item_page').format(idx=self.page_idx + 1)})")
+        self.geometry("1260x820")
+        self.minsize(1020, 680)
+
+        # Thumbnails state
+        self.thumb_cards = {}
+        self.thumb_images = {}
+        self._current_thumb_path = None
 
         # Load folder tuning configuration
         loaded = load_tuning_config(self.folder_path) or {}
@@ -134,17 +139,34 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
         )
         self.cmb_lens.pack(side="left")
 
-        # 2. Main Central Split View Container (50% / 50% strict uniform width)
+        # 2. Main Central Split View Container (Thumbnails sidebar + 50%/50% previews)
         self.view_container = ctk.CTkFrame(self, fg_color="transparent")
         self.view_container.pack(fill="both", expand=True, padx=12, pady=6)
-        self.view_container.grid_columnconfigure(0, weight=1, uniform="preview_cols")
+        self.view_container.grid_columnconfigure(0, weight=0, minsize=165)
         self.view_container.grid_columnconfigure(1, weight=1, uniform="preview_cols")
+        self.view_container.grid_columnconfigure(2, weight=1, uniform="preview_cols")
         self.view_container.grid_rowconfigure(0, weight=1)
         self.view_container.bind("<Configure>", self._on_container_resize)
 
-        # === LEFT COLUMN: ORIGINAL PAGE BOX ===
+        # === COLUMN 0: THUMBNAILS SIDEBAR ===
+        v_thumb_box = ctk.CTkFrame(self.view_container, width=165)
+        v_thumb_box.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        v_thumb_box.grid_rowconfigure(1, weight=1)
+        v_thumb_box.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            v_thumb_box,
+            text=f"📑 {self._tr('sidebar_pages')}",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#3498db"
+        ).grid(row=0, column=0, pady=(6, 4))
+
+        self.thumb_scroll = ctk.CTkScrollableFrame(v_thumb_box, width=155, fg_color="transparent")
+        self.thumb_scroll.grid(row=1, column=0, sticky="nsew", padx=2, pady=(0, 4))
+
+        # === COLUMN 1: ORIGINAL PAGE BOX ===
         v_orig_box = ctk.CTkFrame(self.view_container)
-        v_orig_box.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        v_orig_box.grid(row=0, column=1, sticky="nsew", padx=(0, 5))
         v_orig_box.grid_rowconfigure(1, weight=1)
         v_orig_box.grid_columnconfigure(0, weight=1)
 
@@ -171,9 +193,9 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
         self.lbl_orig_meta_dims = ctk.CTkLabel(orig_card, text="Dimensions: -", font=ctk.CTkFont(size=11, weight="bold"))
         self.lbl_orig_meta_dims.pack(anchor="w", padx=8, pady=(1, 4))
 
-        # === RIGHT COLUMN: TUNED RESULT PAGE BOX ===
+        # === COLUMN 2: TUNED RESULT PAGE BOX ===
         v_prev_box = ctk.CTkFrame(self.view_container)
-        v_prev_box.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        v_prev_box.grid(row=0, column=2, sticky="nsew", padx=(5, 0))
         v_prev_box.grid_rowconfigure(1, weight=1)
         v_prev_box.grid_columnconfigure(0, weight=1)
 
@@ -349,11 +371,20 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
             bgr = np.ones((600, 450, 3), dtype=np.uint8) * 240
 
         self.current_orig_bgr = bgr
+        self.title(f"{self._tr('page_viewer_title')} — {self.filename} ({self._tr('tree_item_page').format(idx=self.page_idx + 1)})")
         self.lbl_doc_info.configure(text=f"📄 {self.filename}  |  Pág {self.page_idx + 1} de {self.total_pages}")
         self.btn_prev_page.configure(state="normal" if self.page_idx > 0 else "disabled")
         self.btn_next_page.configure(state="normal" if self.page_idx < (self.total_pages - 1) else "disabled")
 
+        self._render_thumbnails_if_needed()
+        self._highlight_active_thumb()
         self._update_preview()
+
+    def _go_to_page(self, idx):
+        if 0 <= idx < self.total_pages and idx != self.page_idx:
+            self.page_idx = idx
+            self._sync_tuning_ui_from_state()
+            self._load_and_display_page()
 
     def _prev_page(self):
         if self.page_idx > 0:
@@ -366,6 +397,91 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
             self.page_idx += 1
             self._sync_tuning_ui_from_state()
             self._load_and_display_page()
+
+    def _highlight_active_thumb(self):
+        for pidx, card in self.thumb_cards.items():
+            if pidx == self.page_idx:
+                card.configure(border_color="#3498db", border_width=2)
+            else:
+                card.configure(border_color=("gray75", "#3a3a3a"), border_width=1)
+
+    def _render_thumbnails_if_needed(self):
+        if self._current_thumb_path == self.file_path and self.thumb_cards:
+            return
+        self._current_thumb_path = self.file_path
+
+        # Clear previous cards
+        for widget in self.thumb_scroll.winfo_children():
+            widget.destroy()
+        self.thumb_cards.clear()
+        self.thumb_images.clear()
+
+        ext = os.path.splitext(self.file_path)[1].lower()
+        doc = None
+        tiff = None
+        try:
+            if ext == ".pdf":
+                doc = fitz.open(self.file_path)
+            elif ext in [".tif", ".tiff"]:
+                tiff = Image.open(self.file_path)
+        except Exception:
+            pass
+
+        for pidx in range(self.total_pages):
+            pil_thumb = None
+            try:
+                if doc is not None and pidx < len(doc):
+                    pix = doc[pidx].get_pixmap(dpi=36)
+                    pil_thumb = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                elif tiff is not None:
+                    tiff.seek(pidx)
+                    pil_thumb = tiff.convert("RGB").copy()
+                elif os.path.exists(self.file_path):
+                    with Image.open(self.file_path) as im:
+                        pil_thumb = im.convert("RGB").copy()
+            except Exception:
+                pass
+
+            if pil_thumb is None:
+                pil_thumb = Image.new("RGB", (100, 130), color=(200, 200, 200))
+            else:
+                pil_thumb.thumbnail((120, 150))
+
+            ctk_thumb = ctk.CTkImage(light_image=pil_thumb, dark_image=pil_thumb, size=(pil_thumb.width, pil_thumb.height))
+            self.thumb_images[pidx] = ctk_thumb
+
+            card = ctk.CTkFrame(
+                self.thumb_scroll,
+                corner_radius=6,
+                border_width=1,
+                border_color=("gray75", "#3a3a3a"),
+                fg_color=("gray95", "#252525"),
+                cursor="hand2"
+            )
+            card.pack(fill="x", padx=4, pady=3)
+
+            lbl_img = ctk.CTkLabel(card, image=ctk_thumb, text="", cursor="hand2")
+            lbl_img.pack(padx=4, pady=(4, 2))
+
+            lbl_txt = ctk.CTkLabel(
+                card,
+                text=f"{self._tr('tree_item_page').format(idx=pidx + 1)}",
+                font=ctk.CTkFont(size=10, weight="bold"),
+                cursor="hand2"
+            )
+            lbl_txt.pack(padx=4, pady=(0, 4))
+
+            for w in [card, lbl_img, lbl_txt]:
+                w.bind("<Button-1>", lambda e, p=pidx: self._go_to_page(p))
+                if hasattr(w, "_label"):
+                    w._label.bind("<Button-1>", lambda e, p=pidx: self._go_to_page(p))
+
+            self.thumb_cards[pidx] = card
+
+        if doc is not None:
+            doc.close()
+        if tiff is not None:
+            tiff.close()
 
     def _on_container_resize(self, event):
         if self._resize_timer is not None:
@@ -755,6 +871,9 @@ class S2PITApp(ctk.CTk):
         self.lbl_title.configure(text=f"S2PIT — Smart Slim Preview Tool v{APP_VERSION}")
         self.btn_inspect.configure(text=self._tr("btn_inspect"))
         self.btn_tune.configure(text=self._tr("btn_tune_selected_page"))
+
+# S2POT Page Viewer Alias
+S2POTPageViewerWindow = S2PITPageTuningWindow
 
 
 def launch_s2pit_gui(initial_dir=None):

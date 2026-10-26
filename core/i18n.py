@@ -67,13 +67,13 @@ TRANSLATIONS = {
         "ar": "3. المعالجة والمحرك"
     },
     "box_table": {
-        "pt_PT": "4. Ficheiros de Entrada & Atributos",
-        "en": "4. Input Files & Attributes",
-        "es": "4. Archivos de Entrada y Atributos",
-        "fr": "4. Fichiers d'entrée et attributs",
-        "zh": "4. 输入文件与属性",
-        "ru": "4. Входные файлы и атрибуты",
-        "ar": "4. ملفات المدخلات وخصائصها"
+        "pt_PT": "4. Ficheiros",
+        "en": "4. Files",
+        "es": "4. Archivos",
+        "fr": "4. Fichiers",
+        "zh": "4. 文件",
+        "ru": "4. Файлы",
+        "ar": "4. الملفات"
     },
     "sub_documents": {
         "pt_PT": "Documentos",
@@ -274,13 +274,13 @@ TRANSLATIONS = {
         "ar": "PDF قابل للبحث (الصور المضغوطة)"
     },
     "export_docx": {
-        "pt_PT": "Documento Word (.docx)",
-        "en": "Word Document (.docx)",
-        "es": "Documento Word (.docx)",
-        "fr": "Document Word (.docx)",
-        "zh": "Word 文档 (.docx)",
-        "ru": "Документ Word (.docx)",
-        "ar": "مستند ورد (.docx)"
+        "pt_PT": "Word (.docx)",
+        "en": "Word (.docx)",
+        "es": "Word (.docx)",
+        "fr": "Word (.docx)",
+        "zh": "Word (.docx)",
+        "ru": "Word (.docx)",
+        "ar": "Word (.docx)"
     },
     "organize_doc_subfolders": {
         "pt_PT": "Organizar documentos em subpastas (PDF, DOCX)",
@@ -643,13 +643,31 @@ TRANSLATIONS = {
         "ar": "أبيض/أسود"
     },
     "btn_tune_page": {
-        "pt_PT": "🔍 Afinar Página",
-        "en": "🔍 Tune Page",
-        "es": "🔍 Ajustar Página",
-        "fr": "🔍 Ajuster la page",
-        "zh": "🔍 调优页面",
-        "ru": "🔍 Настроить страницу",
-        "ar": "🔍 ضبط الصفحة"
+        "pt_PT": "🔍 Ver Página",
+        "en": "🔍 View Page",
+        "es": "🔍 Ver Página",
+        "fr": "🔍 Voir la page",
+        "zh": "🔍 查看页面",
+        "ru": "🔍 Просмотр страницы",
+        "ar": "🔍 عرض الصفحة"
+    },
+    "page_viewer_title": {
+        "pt_PT": "S2POT - Visualizador de Páginas",
+        "en": "S2POT - Page Viewer",
+        "es": "S2POT - Visor de Páginas",
+        "fr": "S2POT - Visionneuse de pages",
+        "zh": "S2POT - 页面查看器",
+        "ru": "S2POT - Просмотр страниц",
+        "ar": "S2POT - عارض الصفحات"
+    },
+    "sidebar_pages": {
+        "pt_PT": "Páginas",
+        "en": "Pages",
+        "es": "Páginas",
+        "fr": "Pages",
+        "zh": "页面",
+        "ru": "Страницы",
+        "ar": "الصفحات"
     },
     "tt_btn_tune_selected_page": {
         "pt_PT": "Abre a página selecionada na janela de calibração para afinar cor, resolução e qualidade.",
@@ -1260,22 +1278,22 @@ TRANSLATIONS = {
         "ar": "إظهار في المجلد"
     },
     "btn_inspect_s2pit": {
-        "pt_PT": "Inspecionar na S2PIT",
-        "en": "Inspect in S2PIT",
-        "es": "Inspeccionar en S2PIT",
-        "fr": "Inspecter dans S2PIT",
-        "zh": "在 S2PIT 中检查",
-        "ru": "Проверить в S2PIT",
-        "ar": "فحص في S2PIT"
+        "pt_PT": "Ver Página",
+        "en": "View Page",
+        "es": "Ver Página",
+        "fr": "Voir la page",
+        "zh": "查看页面",
+        "ru": "Просмотр страницы",
+        "ar": "عرض الصفحة"
     },
     "btn_tune_selected_page": {
-        "pt_PT": "🔍 Afinar Página Selecionada",
-        "en": "🔍 Tune Selected Page",
-        "es": "🔍 Ajustar Página Seleccionada",
-        "fr": "🔍 Ajuster la page sélectionnée",
-        "zh": "🔍 调优选定页面",
-        "ru": "🔍 Настроить выбранную страницу",
-        "ar": "🔍 ضبط الصفحة المحددة"
+        "pt_PT": "🔍 Ver Página",
+        "en": "🔍 View Page",
+        "es": "🔍 Ver Página",
+        "fr": "🔍 Voir la page",
+        "zh": "🔍 查看页面",
+        "ru": "🔍 Просмотр страницы",
+        "ar": "🔍 عرض الصفحة"
     },
     "page_tuning_title": {
         "pt_PT": "S2PIT — Estúdio de Afinação & Lente",

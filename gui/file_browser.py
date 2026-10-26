@@ -191,7 +191,6 @@ class FilePageTreeBrowser(ctk.CTkFrame):
 
     def _build_browser_ui(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2 if (self.show_path_bar or self.show_filters) else 0, weight=1)
 
         row_idx = 0
 
@@ -230,9 +229,10 @@ class FilePageTreeBrowser(ctk.CTkFrame):
             ctk.CTkCheckBox(filt_frame, text="JPG", variable=self.var_f_jpg, width=60, command=self.refresh).pack(side="left", padx=4)
             ctk.CTkCheckBox(filt_frame, text="PNG", variable=self.var_f_png, width=60, command=self.refresh).pack(side="left", padx=4)
 
-        # Treeview Container
+        # Treeview Container (dynamically configures height weight for user resizing)
         tree_container = ctk.CTkFrame(self, fg_color="transparent")
         tree_container.grid(row=row_idx, column=0, sticky="nsew", padx=8, pady=4)
+        self.grid_rowconfigure(row_idx, weight=1)
         tree_container.grid_columnconfigure(0, weight=1)
         tree_container.grid_rowconfigure(0, weight=1)
 
@@ -307,11 +307,47 @@ class FilePageTreeBrowser(ctk.CTkFrame):
         vsb.grid(row=0, column=1, sticky="ns")
         hsb.grid(row=1, column=0, sticky="ew")
 
+        # Alternating row tags for fine grid separation
+        self.tree.tag_configure("even", background="#ffffff")
+        self.tree.tag_configure("odd", background="#f8f9fa")
+        self.tree.tag_configure("page_even", background="#f0f4f8")
+        self.tree.tag_configure("page_odd", background="#e7eff7")
+
+        self._setup_gridlines()
+
         # Events
         self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.tree.bind("<Double-1>", self._on_tree_double_click)
         self.tree.bind("<Return>", self._on_tree_double_click)
+
+    def _setup_gridlines(self):
+        self._grid_dividers = []
+        all_cols = ["#0"] + list(self.columns)[:-1]
+        for _ in all_cols:
+            div = tk.Frame(self.tree, width=1, bg="#dcdcdc")
+            self._grid_dividers.append(div)
+
+        def _update_dividers(event=None):
+            try:
+                tot = sum(self.tree.column(c, "width") for c in ["#0"] + list(self.columns))
+                off = int(self.tree.xview()[0] * tot)
+                cx = 0
+                for i, c in enumerate(all_cols):
+                    cx += self.tree.column(c, "width")
+                    px = cx - off
+                    div = self._grid_dividers[i]
+                    if 0 <= px <= self.tree.winfo_width():
+                        div.place(x=px, y=0, relheight=1.0)
+                    else:
+                        div.place_forget()
+            except Exception:
+                pass
+
+        self._update_gridlines_fn = _update_dividers
+        self.tree.bind("<Configure>", _update_dividers, add="+")
+        self.tree.bind("<ButtonRelease-1>", _update_dividers, add="+")
+        self.tree.bind("<B1-Motion>", _update_dividers, add="+")
 
     def _browse_folder(self):
         f = filedialog.askdirectory(initialdir=self.current_dir or os.getcwd())
@@ -363,7 +399,7 @@ class FilePageTreeBrowser(ctk.CTkFrame):
 
         self.found_files = sorted(list(set(files)))
 
-        for fpath in self.found_files:
+        for f_idx, fpath in enumerate(self.found_files):
             fname = os.path.basename(fpath)
             ext = os.path.splitext(fpath)[1].upper().replace(".", "")
             try:
@@ -420,8 +456,9 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                 else:
                     row_vals.append("-")
 
-            # Insert parent file item with folder/file icon
-            parent_id = self.tree.insert("", "end", text=f"📄 {fname}", values=tuple(row_vals), open=False)
+            # Insert parent file item with zebra tag
+            file_tag = "even" if f_idx % 2 == 0 else "odd"
+            parent_id = self.tree.insert("", "end", text=f"📄 {fname}", values=tuple(row_vals), open=False, tags=(file_tag,))
             self.file_to_item[fpath] = parent_id
             self.item_to_info[parent_id] = {
                 "type": "file",
@@ -433,10 +470,53 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                 "meta": f_meta
             }
 
-            # If multi-page or PDF/TIFF, add a dummy child to enable the '+' expander
-            if n_pages > 1 or low_ext in [".pdf", ".tif", ".tiff"]:
+            # If metadata already has pages, pre-populate them immediately (instant expansion)
+            if f_meta and "pages" in f_meta and len(f_meta["pages"]) > 0:
+                for p_idx, pinfo in enumerate(f_meta["pages"]):
+                    pidx = pinfo.get("page_idx", p_idx)
+                    dims_str = f"{pinfo.get('width', 0)} × {pinfo.get('height', 0)} px"
+                    page_dpi = f"{pinfo.get('dpi', 300)} DPI"
+
+                    tuning_page_str = "-"
+                    if self.tuning_config:
+                        eff_page = get_effective_file_tuning(self.tuning_config, fname, pidx)
+                        tuning_page_str = f"{eff_page.get('color_mode', 'color')} ({eff_page.get('target_dpi', 150)} DPI)"
+
+                    child_vals = []
+                    for col in self.columns:
+                        if col == "Format": child_vals.append(dims_str)
+                        elif col == "Size": child_vals.append("-")
+                        elif col == "Pages": child_vals.append(self._tr("page_prefix").format(idx=pidx + 1))
+                        elif col == "ImgRes": child_vals.append(page_dpi)
+                        elif col == "Chars": child_vals.append("-")
+                        elif col == "Status": child_vals.append("Ready")
+                        elif col == "Time": child_vals.append("-")
+                        elif col == "Tuning": child_vals.append(tuning_page_str)
+                        elif col == "DateModified": child_vals.append("-")
+                        else: child_vals.append("-")
+
+                    ptag = "page_even" if p_idx % 2 == 0 else "page_odd"
+                    child_id = self.tree.insert(
+                        parent_id,
+                        "end",
+                        text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
+                        values=tuple(child_vals),
+                        tags=(ptag,)
+                    )
+                    self.item_to_info[child_id] = {
+                        "type": "page",
+                        "path": fpath,
+                        "filename": fname,
+                        "page_idx": pidx,
+                        "parent_id": parent_id
+                    }
+                self.loaded_pages.add(fpath)
+            elif n_pages > 1 or low_ext in [".pdf", ".tif", ".tiff"]:
                 dummy_id = f"{parent_id}_dummy"
                 self.tree.insert(parent_id, "end", iid=dummy_id, text=self._tr("loading_pages"), values=())
+
+        if hasattr(self, "_update_gridlines_fn"):
+            self.after(50, self._update_gridlines_fn)
 
         if self.on_selection_changed:
             self.on_selection_changed([], [])
@@ -486,11 +566,13 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                             elif col == "DateModified": child_vals.append("-")
                             else: child_vals.append("-")
 
+                        ptag = "page_even" if pidx % 2 == 0 else "page_odd"
                         child_id = self.tree.insert(
                             parent_id,
                             "end",
                             text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
-                            values=tuple(child_vals)
+                            values=tuple(child_vals),
+                            tags=(ptag,)
                         )
                         self.item_to_info[child_id] = {
                             "type": "page",
@@ -521,11 +603,13 @@ class FilePageTreeBrowser(ctk.CTkFrame):
                             elif col == "DateModified": child_vals.append("-")
                             else: child_vals.append("-")
 
+                        ptag = "page_even" if pidx % 2 == 0 else "page_odd"
                         child_id = self.tree.insert(
                             parent_id,
                             "end",
                             text=f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}",
-                            values=tuple(child_vals)
+                            values=tuple(child_vals),
+                            tags=(ptag,)
                         )
                         self.item_to_info[child_id] = {
                             "type": "page",
@@ -600,8 +684,6 @@ class FilePageTreeBrowser(ctk.CTkFrame):
             is_open = self.tree.item(iid, "open")
             self.tree.item(iid, open=not is_open)
             self._on_tree_open(None)
-            if self.on_page_activated:
-                self.on_page_activated(info["path"], 0)
 
     def get_selected_files(self):
         """Returns list of selected file paths (or all parent files if pages selected)."""

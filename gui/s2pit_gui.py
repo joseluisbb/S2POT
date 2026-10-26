@@ -541,19 +541,24 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
             return
 
         nw, nh, offset_x, offset_y = display_info
+        inner_widget = getattr(target_label, "_label", target_label)
 
-        cursor_x_in_label = float(event.x)
-        cursor_y_in_label = float(event.y)
+        # Track cursor relative to the image using absolute screen coordinates
+        # to ensure flawless tracking across the entire image including the top-left corner (0, 0)
+        img_root_x = inner_widget.winfo_rootx()
+        img_root_y = inner_widget.winfo_rooty()
+        img_disp_w = inner_widget.winfo_width() or nw
+        img_disp_h = inner_widget.winfo_height() or nh
 
-        cursor_x_in_img = cursor_x_in_label - offset_x
-        cursor_y_in_img = cursor_y_in_label - offset_y
+        cursor_x_in_img = float(event.x_root - img_root_x)
+        cursor_y_in_img = float(event.y_root - img_root_y)
 
-        if cursor_x_in_img < 0 or cursor_x_in_img > nw or cursor_y_in_img < 0 or cursor_y_in_img > nh:
+        if cursor_x_in_img < 0 or cursor_x_in_img > img_disp_w or cursor_y_in_img < 0 or cursor_y_in_img > img_disp_h:
             self._hide_lens()
             return
 
-        norm_x = max(0.0, min(1.0, cursor_x_in_img / float(nw))) if nw > 0 else 0.5
-        norm_y = max(0.0, min(1.0, cursor_y_in_img / float(nh))) if nh > 0 else 0.5
+        norm_x = max(0.0, min(1.0, cursor_x_in_img / float(img_disp_w))) if img_disp_w > 0 else 0.0
+        norm_y = max(0.0, min(1.0, cursor_y_in_img / float(img_disp_h))) if img_disp_h > 0 else 0.0
 
         img_h, img_w = target_bgr.shape[:2]
         cx_px = int(norm_x * img_w)
@@ -563,8 +568,9 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
         crop_w_px = max(16, int(crop_fraction * img_w))
         crop_h_px = max(16, int(crop_fraction * img_h))
 
-        x1 = max(0, cx_px - crop_w_px // 2)
-        y1 = max(0, cy_px - crop_h_px // 2)
+        # The upper-left corner of the magnified patch corresponds to the point where the mouse is
+        x1 = cx_px
+        y1 = cy_px
         x2 = min(img_w, x1 + crop_w_px)
         y2 = min(img_h, y1 + crop_h_px)
 
@@ -582,14 +588,31 @@ class S2PITPageTuningWindow(ctk.CTkToplevel):
         rgb = cv2.cvtColor(zoomed, cv2.COLOR_BGR2RGB)
         pi = ImageTk.PhotoImage(Image.fromarray(rgb))
 
-        inner_widget = getattr(target_label, "_label", target_label)
-        root_x = inner_widget.winfo_rootx() + event.x + 25
-        root_y = inner_widget.winfo_rooty() + event.y + 25
+        root_x = event.x_root + 5
+        root_y = event.y_root + 5
+
+        # Prevent lens popover from escaping the screen boundary
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        if root_x + lens_size > screen_w:
+            root_x = max(0, event.x_root - lens_size - 5)
+        if root_y + lens_size > screen_h:
+            root_y = max(0, event.y_root - lens_size - 5)
 
         if self.lens_popover is None or not self.lens_popover.winfo_exists():
             self.lens_popover = tk.Toplevel(self)
             self.lens_popover.overrideredirect(True)
             self.lens_popover.attributes("-topmost", True)
+            try:
+                import ctypes
+                hwnd = ctypes.windll.user32.GetParent(self.lens_popover.winfo_id()) or self.lens_popover.winfo_id()
+                GWL_EXSTYLE = -20
+                WS_EX_TRANSPARENT = 0x00000020
+                WS_EX_LAYERED = 0x00080000
+                curr_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, curr_style | WS_EX_TRANSPARENT | WS_EX_LAYERED)
+            except Exception:
+                pass
             self.lbl_lens_img = tk.Label(self.lens_popover, bd=2, relief="solid", bg="#f1c40f")
             self.lbl_lens_img.pack()
 

@@ -32,18 +32,26 @@ class TrOCREngine:
 
         if model_dir is None:
             if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-                base_dir = os.path.join(sys._MEIPASS, "models")
+                exe_dir = os.path.dirname(sys.executable)
+                ext_base = os.path.join(exe_dir, "models", "trocr_base")
+                if os.path.exists(os.path.join(ext_base, "onnx", "decoder_model_quantized.onnx")):
+                    model_dir = ext_base
+                else:
+                    base_dir = os.path.join(sys._MEIPASS, "models")
+                    base_model_dir = os.path.join(base_dir, "trocr_base")
+                    small_model_dir = os.path.join(base_dir, "trocr_small")
+                    if os.path.exists(os.path.join(base_model_dir, "onnx", "decoder_model_quantized.onnx")):
+                        model_dir = base_model_dir
+                    else:
+                        model_dir = small_model_dir
             else:
                 base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
-
-            base_model_dir = os.path.join(base_dir, "trocr_base")
-            small_model_dir = os.path.join(base_dir, "trocr_small")
-
-            # Check if trocr_base is complete
-            if os.path.exists(os.path.join(base_model_dir, "onnx", "decoder_model_quantized.onnx")):
-                model_dir = base_model_dir
-            else:
-                model_dir = small_model_dir
+                base_model_dir = os.path.join(base_dir, "trocr_base")
+                small_model_dir = os.path.join(base_dir, "trocr_small")
+                if os.path.exists(os.path.join(base_model_dir, "onnx", "decoder_model_quantized.onnx")):
+                    model_dir = base_model_dir
+                else:
+                    model_dir = small_model_dir
 
         self.model_dir = model_dir
         self.enc_path = os.path.join(model_dir, "onnx", "encoder_model_quantized.onnx")

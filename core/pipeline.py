@@ -7,7 +7,7 @@ from PIL import Image
 from core.enhancer import enhance_contrast_lab
 from core.deskew import auto_align_page
 from core.ocr_engine import OCREngine
-from core.pdf_builder import create_searchable_pdf
+from core.pdf_builder import create_searchable_pdf, encode_page_jpeg_bytes
 from core.data_exporter import export_file_data, export_batch_reports
 from core.tuning_config import load_tuning_config, get_effective_file_tuning
 
@@ -24,12 +24,15 @@ def apply_color_mode(bgr_img, color_mode):
     return bgr_img
 
 
-def is_native_text_quality_good(direct_words):
-    """Evaluates if an embedded native PDF text layer is high-quality or contains corrupt/OCR garbage noise."""
+def compute_native_text_quality(direct_words):
+    """
+    Evaluates if an embedded native PDF text layer is high-quality or contains corrupt/OCR garbage noise.
+    Returns (is_good: bool, confidence_pct: float).
+    """
     if not direct_words:
-        return False
+        return False, 0.0
     if len(direct_words) < 5:
-        return True
+        return True, 95.0
     garbage_count = 0
     for w in direct_words:
         txt = w[4].strip()
@@ -46,7 +49,84 @@ def is_native_text_quality_good(direct_words):
         if has_noise:
             garbage_count += 1
     ratio = garbage_count / float(len(direct_words))
-    return ratio <= 0.15
+    conf_pct = round(max(0.0, min(100.0, (1.0 - ratio) * 100.0)), 1)
+    return ratio <= 0.15, conf_pct
+
+
+def is_native_text_quality_good(direct_words):
+    is_good, _ = compute_native_text_quality(direct_words)
+    return is_good
+
+
+def compute_ocr_confidence_pct(ocr_results):
+    """Computes character-weighted average OCR confidence (0.0 to 100.0%)."""
+    if not ocr_results:
+        return 0.0
+    tot_chars = 0
+    weighted_score = 0.0
+    for item in ocr_results:
+        txt = item.get("text", "").strip()
+        n_c = len(txt)
+        if n_c <= 0:
+            continue
+        sc = float(item.get("score", 0.92))
+        if sc > 1.0:
+            sc = sc / 100.0
+        weighted_score += sc * n_c
+        tot_chars += n_c
+    if tot_chars <= 0:
+        return 0.0
+    return round(max(0.0, min(100.0, (weighted_score / float(tot_chars)) * 100.0)), 1)
+
+
+def _rescale_bbox_items(ocr_results, illustrations, tables, scale_x, scale_y):
+    """Rescales OCR word, illustration, and table bounding boxes from high-res OCR space to Target DPI space."""
+    if abs(scale_x - 1.0) < 1e-4 and abs(scale_y - 1.0) < 1e-4:
+        return ocr_results, illustrations, tables
+
+    for item in (ocr_results or []):
+        if isinstance(item, dict):
+            bx = item.get("bbox")
+            if bx and len(bx) == 4:
+                item["bbox"] = [
+                    int(round(bx[0] * scale_x)),
+                    int(round(bx[1] * scale_y)),
+                    int(round(bx[2] * scale_x)),
+                    int(round(bx[3] * scale_y))
+                ]
+
+    scaled_illustrations = []
+    for ill in (illustrations or []):
+        if isinstance(ill, dict):
+            bx = ill.get("bbox")
+            if bx and len(bx) == 4:
+                ill["bbox"] = [
+                    int(round(bx[0] * scale_x)),
+                    int(round(bx[1] * scale_y)),
+                    int(round(bx[2] * scale_x)),
+                    int(round(bx[3] * scale_y))
+                ]
+            scaled_illustrations.append(ill)
+        elif isinstance(ill, np.ndarray) and ill.size > 0:
+            nh = max(1, int(round(ill.shape[0] * scale_y)))
+            nw = max(1, int(round(ill.shape[1] * scale_x)))
+            scaled_illustrations.append(cv2.resize(ill, (nw, nh), interpolation=cv2.INTER_AREA))
+        else:
+            scaled_illustrations.append(ill)
+    illustrations = scaled_illustrations
+
+    for tbl in (tables or []):
+        if isinstance(tbl, dict):
+            bx = tbl.get("bbox")
+            if bx and len(bx) == 4:
+                tbl["bbox"] = [
+                    int(round(bx[0] * scale_x)),
+                    int(round(bx[1] * scale_y)),
+                    int(round(bx[2] * scale_x)),
+                    int(round(bx[3] * scale_y))
+                ]
+
+    return ocr_results, illustrations, tables
 
 
 def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export_options=None, enable_auto_deskew=True, pdf_text_strategy="reuse", target_dpi=300, jpeg_quality=70, progress_callback=None, abort_check_fn=None):
@@ -62,17 +142,21 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
     filename = os.path.basename(file_path)
     input_dir = os.path.dirname(file_path)
     tuning_cfg = options.get("tuning_config") or load_tuning_config(input_dir)
-    effective_tuning = get_effective_file_tuning(tuning_cfg, filename)
+    effective_tuning = get_effective_file_tuning(tuning_cfg, filename, default_dpi=target_dpi)
 
     eff_color_mode = options.get("color_mode", effective_tuning.get("color_mode", "color"))
     target_dpi = options.get("target_dpi", effective_tuning.get("target_dpi", target_dpi))
     eff_quality = options.get("pdf_jpeg_quality", options.get("jpeg_quality", effective_tuning.get("jpeg_quality", jpeg_quality)))
     eff_max_dim = options.get("downsample_max_dim", effective_tuning.get("downsample_max_dim", 2000))
+    eff_doc_type = options.get("doc_type", getattr(ocr_engine, "doc_type", "printed"))
 
-    if "pdf_text_strategy" in options:
+    if eff_doc_type == "handwritten":
+        pdf_text_strategy = "force_ocr"
+    elif "pdf_text_strategy" in options:
         pdf_text_strategy = options["pdf_text_strategy"]
 
     pages_data = []
+    pages_info = []
     full_plain_text = []
     full_hocr_pages = []
     total_words_count = 0
@@ -92,27 +176,60 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
                 doc.close()
                 raise InterruptedError("Process aborted by user.")
 
+            page_t0 = time.time()
             if progress_callback:
                 progress_callback(p_idx + 1, total_pages, f"Processing page {p_idx+1}/{total_pages}...")
 
+            page_tune = get_effective_file_tuning(tuning_cfg, filename, page_idx=p_idx, default_dpi=target_dpi)
+            p_target_dpi = options.get("target_dpi", page_tune.get("target_dpi", target_dpi))
+            p_color_mode = options.get("color_mode", page_tune.get("color_mode", eff_color_mode))
+
             page = doc[p_idx]
+            pt_w, pt_h = page.rect.width, page.rect.height
+            page_orig_dpi = 300
+            page_orig_cmode = "color"
+            image_list = page.get_images()
+            if image_list:
+                for img_item in image_list:
+                    try:
+                        base_img = doc.extract_image(img_item[0])
+                        w_i, h_i = base_img.get("width", 0), base_img.get("height", 0)
+                        cs = base_img.get("colorspace", 3)
+                        if cs == 1:
+                            page_orig_cmode = "grayscale"
+                        if pt_w > 0 and pt_h > 0 and w_i > 0 and h_i > 0:
+                            page_orig_dpi = max(page_orig_dpi, int(round((w_i * 72.0) / pt_w)))
+                    except Exception:
+                        pass
+
             direct_text = page.get_text("text").strip()
             direct_words = page.get_text("words")
+            native_quality_good, native_conf_pct = compute_native_text_quality(direct_words)
+            page_has_text = (len(direct_text) >= 10 and len(direct_words) > 0 and native_quality_good)
+            need_ocr = not (page_has_text and pdf_text_strategy != "force_ocr")
 
-            pix = page.get_pixmap(dpi=target_dpi)
+            # Option A: Always run OCR at high resolution (>= 300 DPI) even when Target PDF DPI is lower (72-200 DPI)
+            ocr_dpi = max(p_target_dpi, min(max(page_orig_dpi, 300), 300)) if need_ocr else p_target_dpi
+
+            pix = page.get_pixmap(dpi=ocr_dpi)
+            if not image_list:
+                if pix.n == 1 or pix.colorspace == fitz.csGRAY:
+                    page_orig_cmode = "grayscale"
+            orig_w = int(round(pt_w * (page_orig_dpi / 72.0))) if pt_w > 0 else pix.width
+            orig_h = int(round(pt_h * (page_orig_dpi / 72.0))) if pt_h > 0 else pix.height
+
             if pix.n == 4:
                 bgr_resampled = cv2.cvtColor(np.frombuffer(pix.samples, dtype=np.uint8).reshape((pix.height, pix.width, 4)), cv2.COLOR_RGBA2BGR)
             else:
                 bgr_resampled = cv2.cvtColor(np.frombuffer(pix.samples, dtype=np.uint8).reshape((pix.height, pix.width, 3)), cv2.COLOR_RGB2BGR)
 
             bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_resampled, enable_deskew=enable_auto_deskew)
-            bgr_enhanced = enhance_contrast_lab(bgr_aligned)
-            bgr_enhanced = apply_color_mode(bgr_enhanced, eff_color_mode)
+            bgr_enhanced_ocr = enhance_contrast_lab(bgr_aligned, dpi=ocr_dpi)
 
             if len(direct_text) > 0 or len(direct_words) > 0:
                 has_orig_text_layer = True
                 orig_ocr_results = []
-                pt_to_px = float(target_dpi) / 72.0
+                pt_to_px = float(p_target_dpi) / 72.0
                 for w in direct_words:
                     x0, y0, x1, y1, w_text = w[0], w[1], w[2], w[3], w[4]
                     orig_ocr_results.append({
@@ -120,7 +237,8 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
                         "bbox": [int(round(x0 * pt_to_px)), int(round(y0 * pt_to_px)), int(round(x1 * pt_to_px)), int(round(y1 * pt_to_px))],
                         "font_size_pt": round(max(8.0, min(32.0, y1 - y0)), 1),
                         "font_weight": "Normal",
-                        "font_family": "Sans-Serif"
+                        "font_family": "Sans-Serif",
+                        "score": round(native_conf_pct / 100.0, 3)
                     })
 
                 orig_plain_text.append(f"--- Page {p_idx+1} ---\n" + direct_text)
@@ -136,23 +254,40 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
                     "ocr_results": orig_ocr_results
                 })
 
-            native_quality_good = is_native_text_quality_good(direct_words)
-            page_has_text = (len(direct_text) >= 10 and len(direct_words) > 0 and native_quality_good)
-
-            if page_has_text and pdf_text_strategy != "force_ocr":
+            if not need_ocr:
+                bgr_enhanced = apply_color_mode(bgr_enhanced_ocr, p_color_mode)
                 ocr_results = orig_ocr_results
                 full_plain_text.append(f"--- Page {p_idx+1} ---\n" + direct_text)
+                page_chars = len(direct_text)
+                page_conf = native_conf_pct
                 total_words_count += len(ocr_results)
-                total_chars_count += len(direct_text)
+                total_chars_count += page_chars
                 full_hocr_pages.append(orig_hocr_html)
                 illustrations, tables = [], []
             else:
-                ocr_pack = ocr_engine.run_ocr_full(bgr_enhanced, page_num=p_idx+1, target_dpi=target_dpi)
+                ocr_input_bgr = apply_color_mode(bgr_enhanced_ocr, "grayscale") if p_color_mode != "color" else bgr_enhanced_ocr
+                ocr_pack = ocr_engine.run_ocr_full(ocr_input_bgr, page_num=p_idx+1, target_dpi=ocr_dpi)
                 ocr_results = ocr_pack["ocr_results"]
                 illustrations = ocr_pack.get("illustrations", [])
                 tables = ocr_pack.get("tables", [])
+
+                if p_target_dpi != ocr_dpi:
+                    h_ocr, w_ocr = bgr_enhanced_ocr.shape[:2]
+                    scale_to_target = float(p_target_dpi) / float(ocr_dpi)
+                    target_w = max(100, int(round(w_ocr * scale_to_target)))
+                    target_h = max(100, int(round(h_ocr * scale_to_target)))
+                    bgr_resized = cv2.resize(bgr_enhanced_ocr, (target_w, target_h), interpolation=cv2.INTER_AREA)
+                    sx = float(target_w) / float(w_ocr)
+                    sy = float(target_h) / float(h_ocr)
+                    ocr_results, illustrations, tables = _rescale_bbox_items(ocr_results, illustrations, tables, sx, sy)
+                else:
+                    bgr_resized = bgr_enhanced_ocr
+
+                bgr_enhanced = apply_color_mode(bgr_resized, p_color_mode)
+                page_chars = sum(len(w.get("text", "")) for w in ocr_results)
+                page_conf = compute_ocr_confidence_pct(ocr_results)
                 total_words_count += len(ocr_results)
-                total_chars_count += sum(len(w.get("text", "")) for w in ocr_results)
+                total_chars_count += page_chars
 
                 p_text = ocr_pack.get("plain_text", "").strip()
                 full_plain_text.append(f"--- Page {p_idx+1} ---\n" + p_text)
@@ -160,18 +295,32 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
                 h_html = ocr_pack.get("hocr_html", "")
                 full_hocr_pages.append(h_html)
 
-            _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            jpeg_bytes = encode_page_jpeg_bytes(bgr_enhanced, jpeg_quality=95, color_mode=p_color_mode)
 
             pages_data.append({
                 "page_num": p_idx + 1,
-                "jpeg_bytes": jpeg_bytes.tobytes(),
+                "jpeg_bytes": jpeg_bytes,
                 "bgr_image": bgr_enhanced,
                 "width_px": bgr_enhanced.shape[1],
                 "height_px": bgr_enhanced.shape[0],
-                "dpi": target_dpi,
+                "dpi": p_target_dpi,
+                "color_mode": p_color_mode,
                 "ocr_results": ocr_results,
                 "illustrations": illustrations,
                 "tables": tables
+            })
+            pages_info.append({
+                "page_idx": p_idx,
+                "width": orig_w,
+                "height": orig_h,
+                "chars": page_chars,
+                "confidence": page_conf,
+                "orig_dpi": page_orig_dpi,
+                "orig_cmode": page_orig_cmode,
+                "target_dpi": p_target_dpi,
+                "target_cmode": p_color_mode,
+                "elapsed": time.time() - page_t0,
+                "status": "done"
             })
 
         doc.close()
@@ -184,100 +333,197 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
             if abort_check_fn and abort_check_fn():
                 raise InterruptedError("Process aborted by user.")
 
+            page_t0 = time.time()
             if progress_callback:
                 progress_callback(p_idx + 1, total_pages, f"Processing page {p_idx+1}/{total_pages}...")
 
+            page_tune = get_effective_file_tuning(tuning_cfg, filename, page_idx=p_idx, default_dpi=target_dpi)
+            p_target_dpi = options.get("target_dpi", page_tune.get("target_dpi", target_dpi))
+            p_color_mode = options.get("color_mode", page_tune.get("color_mode", eff_color_mode))
+
             tiff.seek(p_idx)
+            page_orig_cmode = "grayscale" if tiff.mode in ["L", "1"] else "color"
             page_img = np.array(tiff.convert('RGB'))
             bgr_full = cv2.cvtColor(page_img, cv2.COLOR_RGB2BGR)
 
             h_orig, w_orig = bgr_full.shape[:2]
             input_dpi = 300
             if "dpi" in tiff.info and isinstance(tiff.info["dpi"], tuple):
-                input_dpi = int(tiff.info["dpi"][0])
+                input_dpi = int(round(max(float(tiff.info["dpi"][0]), float(tiff.info["dpi"][1]))))
 
-            scale = float(target_dpi) / float(input_dpi)
-            target_w = max(100, int(w_orig * scale))
-            target_h = max(100, int(h_orig * scale))
+            # Option A: Always run OCR at >= 300 DPI (or original DPI), then rescale to p_target_dpi
+            ocr_dpi = max(p_target_dpi, min(max(input_dpi, 300), 300))
+            if ocr_dpi != input_dpi and input_dpi > 0:
+                scale_ocr = float(ocr_dpi) / float(input_dpi)
+                ocr_w = max(100, int(round(w_orig * scale_ocr)))
+                ocr_h = max(100, int(round(h_orig * scale_ocr)))
+                bgr_for_ocr = cv2.resize(bgr_full, (ocr_w, ocr_h), interpolation=cv2.INTER_AREA if scale_ocr < 1.0 else cv2.INTER_CUBIC)
+            else:
+                bgr_for_ocr = bgr_full
 
-            bgr_resampled = cv2.resize(bgr_full, (target_w, target_h), interpolation=cv2.INTER_AREA)
-            bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_resampled, enable_deskew=enable_auto_deskew)
-            bgr_enhanced = enhance_contrast_lab(bgr_aligned)
-            bgr_enhanced = apply_color_mode(bgr_enhanced, eff_color_mode)
+            bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_for_ocr, enable_deskew=enable_auto_deskew)
+            bgr_enhanced_ocr = enhance_contrast_lab(bgr_aligned, dpi=ocr_dpi)
 
-            ocr_pack = ocr_engine.run_ocr_full(bgr_enhanced, page_num=p_idx+1, target_dpi=target_dpi)
+            ocr_input_bgr = apply_color_mode(bgr_enhanced_ocr, "grayscale") if p_color_mode != "color" else bgr_enhanced_ocr
+            ocr_pack = ocr_engine.run_ocr_full(ocr_input_bgr, page_num=p_idx+1, target_dpi=ocr_dpi)
             ocr_results = ocr_pack["ocr_results"]
             illustrations = ocr_pack.get("illustrations", [])
             tables = ocr_pack.get("tables", [])
+
+            if p_target_dpi != ocr_dpi:
+                h_ocr, w_ocr = bgr_enhanced_ocr.shape[:2]
+                scale_to_target = float(p_target_dpi) / float(ocr_dpi)
+                target_w = max(100, int(round(w_ocr * scale_to_target)))
+                target_h = max(100, int(round(h_ocr * scale_to_target)))
+                bgr_resized = cv2.resize(bgr_enhanced_ocr, (target_w, target_h), interpolation=cv2.INTER_AREA)
+                sx = float(target_w) / float(w_ocr)
+                sy = float(target_h) / float(h_ocr)
+                ocr_results, illustrations, tables = _rescale_bbox_items(ocr_results, illustrations, tables, sx, sy)
+            else:
+                bgr_resized = bgr_enhanced_ocr
+
+            bgr_enhanced = apply_color_mode(bgr_resized, p_color_mode)
+            page_chars = sum(len(w.get("text", "")) for w in ocr_results)
+            page_conf = compute_ocr_confidence_pct(ocr_results)
             total_words_count += len(ocr_results)
-            total_chars_count += sum(len(w.get("text", "")) for w in ocr_results)
+            total_chars_count += page_chars
 
             if ocr_pack["plain_text"]:
                 full_plain_text.append(f"--- Page {p_idx+1} ---\n" + ocr_pack["plain_text"])
             if ocr_pack["hocr_html"]:
                 full_hocr_pages.append(ocr_pack["hocr_html"])
 
-            _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            jpeg_bytes = encode_page_jpeg_bytes(bgr_enhanced, jpeg_quality=95, color_mode=p_color_mode)
 
             pages_data.append({
                 "page_num": p_idx + 1,
-                "jpeg_bytes": jpeg_bytes.tobytes(),
+                "jpeg_bytes": jpeg_bytes,
                 "bgr_image": bgr_enhanced,
                 "width_px": bgr_enhanced.shape[1],
                 "height_px": bgr_enhanced.shape[0],
-                "dpi": target_dpi,
+                "dpi": p_target_dpi,
+                "color_mode": p_color_mode,
                 "ocr_results": ocr_results,
                 "illustrations": illustrations,
                 "tables": tables
+            })
+            pages_info.append({
+                "page_idx": p_idx,
+                "width": w_orig,
+                "height": h_orig,
+                "chars": page_chars,
+                "confidence": page_conf,
+                "orig_dpi": input_dpi,
+                "orig_cmode": page_orig_cmode,
+                "target_dpi": p_target_dpi,
+                "target_cmode": p_color_mode,
+                "elapsed": time.time() - page_t0,
+                "status": "done"
             })
 
     else:
         # Standard images: JPG, PNG, BMP, WEBP
         total_pages = 1
+        page_t0 = time.time()
         if progress_callback:
             progress_callback(1, 1, "Processing image file...")
+
+        page_tune = get_effective_file_tuning(tuning_cfg, filename, page_idx=0, default_dpi=target_dpi)
+        p_target_dpi = options.get("target_dpi", page_tune.get("target_dpi", target_dpi))
+        p_color_mode = options.get("color_mode", page_tune.get("color_mode", eff_color_mode))
+
+        input_dpi = 300
+        page_orig_cmode = "color"
+        try:
+            with Image.open(file_path) as img_meta:
+                dpi_tuple = img_meta.info.get("dpi")
+                if dpi_tuple and isinstance(dpi_tuple, tuple):
+                    input_dpi = int(round(max(float(dpi_tuple[0]), float(dpi_tuple[1]))))
+                page_orig_cmode = "grayscale" if img_meta.mode in ["L", "1"] else "color"
+        except Exception:
+            pass
 
         bgr_full = cv2.imread(file_path)
         if bgr_full is None:
             pil_img = Image.open(file_path).convert("RGB")
             bgr_full = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
-        h_orig, w_orig = bgr_full.shape[:2]
-        if max(h_orig, w_orig) < 1500:
-            scale = 2000.0 / float(max(h_orig, w_orig))
-            bgr_full = cv2.resize(bgr_full, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        h_orig_raw, w_orig_raw = bgr_full.shape[:2]
+        ocr_dpi = max(p_target_dpi, min(max(input_dpi, 300), 300))
+        if max(h_orig_raw, w_orig_raw) < 1500:
+            scale = 2000.0 / float(max(h_orig_raw, w_orig_raw))
+            bgr_for_ocr = cv2.resize(bgr_full, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        elif ocr_dpi != input_dpi and input_dpi > 0:
+            scale_ocr = float(ocr_dpi) / float(input_dpi)
+            ocr_w = max(100, int(round(w_orig_raw * scale_ocr)))
+            ocr_h = max(100, int(round(h_orig_raw * scale_ocr)))
+            bgr_for_ocr = cv2.resize(bgr_full, (ocr_w, ocr_h), interpolation=cv2.INTER_AREA if scale_ocr < 1.0 else cv2.INTER_CUBIC)
+        else:
+            bgr_for_ocr = bgr_full
 
-        bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_full, enable_deskew=enable_auto_deskew)
-        bgr_enhanced = enhance_contrast_lab(bgr_aligned)
-        bgr_enhanced = apply_color_mode(bgr_enhanced, eff_color_mode)
+        bgr_aligned, rot_deg, skew_deg = auto_align_page(bgr_for_ocr, enable_deskew=enable_auto_deskew)
+        bgr_enhanced_ocr = enhance_contrast_lab(bgr_aligned, dpi=ocr_dpi)
 
-        ocr_pack = ocr_engine.run_ocr_full(bgr_enhanced, page_num=1, target_dpi=target_dpi)
+        ocr_input_bgr = apply_color_mode(bgr_enhanced_ocr, "grayscale") if p_color_mode != "color" else bgr_enhanced_ocr
+        ocr_pack = ocr_engine.run_ocr_full(ocr_input_bgr, page_num=1, target_dpi=ocr_dpi)
         ocr_results = ocr_pack["ocr_results"]
         illustrations = ocr_pack.get("illustrations", [])
         tables = ocr_pack.get("tables", [])
+
+        if p_target_dpi != ocr_dpi:
+            h_ocr, w_ocr = bgr_enhanced_ocr.shape[:2]
+            scale_to_target = float(p_target_dpi) / float(ocr_dpi)
+            target_w = max(100, int(round(w_ocr * scale_to_target)))
+            target_h = max(100, int(round(h_ocr * scale_to_target)))
+            bgr_resized = cv2.resize(bgr_enhanced_ocr, (target_w, target_h), interpolation=cv2.INTER_AREA)
+            sx = float(target_w) / float(w_ocr)
+            sy = float(target_h) / float(h_ocr)
+            ocr_results, illustrations, tables = _rescale_bbox_items(ocr_results, illustrations, tables, sx, sy)
+        else:
+            bgr_resized = bgr_enhanced_ocr
+
+        bgr_enhanced = apply_color_mode(bgr_resized, p_color_mode)
+        page_chars = sum(len(w.get("text", "")) for w in ocr_results)
+        page_conf = compute_ocr_confidence_pct(ocr_results)
         total_words_count += len(ocr_results)
-        total_chars_count += sum(len(w.get("text", "")) for w in ocr_results)
+        total_chars_count += page_chars
 
         if ocr_pack["plain_text"]:
             full_plain_text.append("--- Page 1 ---\n" + ocr_pack["plain_text"])
         if ocr_pack["hocr_html"]:
             full_hocr_pages.append(ocr_pack["hocr_html"])
 
-        _, jpeg_bytes = cv2.imencode('.jpg', bgr_enhanced, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+        jpeg_bytes = encode_page_jpeg_bytes(bgr_enhanced, jpeg_quality=95, color_mode=p_color_mode)
 
         pages_data.append({
             "page_num": 1,
-            "jpeg_bytes": jpeg_bytes.tobytes(),
+            "jpeg_bytes": jpeg_bytes,
             "bgr_image": bgr_enhanced,
             "width_px": bgr_enhanced.shape[1],
             "height_px": bgr_enhanced.shape[0],
-            "dpi": target_dpi,
+            "dpi": p_target_dpi,
+            "color_mode": p_color_mode,
             "ocr_results": ocr_results,
             "illustrations": illustrations,
             "tables": tables
         })
+        pages_info.append({
+            "page_idx": 0,
+            "width": w_orig_raw,
+            "height": h_orig_raw,
+            "chars": page_chars,
+            "confidence": page_conf,
+            "orig_dpi": input_dpi,
+            "orig_cmode": page_orig_cmode,
+            "target_dpi": p_target_dpi,
+            "target_cmode": p_color_mode,
+            "elapsed": time.time() - page_t0,
+            "status": "done"
+        })
 
     primary_pdf_path = None
+    out_orig_pdf = None
+    out_comp_pdf = None
 
     organize_docs = options.get("organize_doc_subfolders", False)
 
@@ -312,20 +558,49 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
         export_file_data(data_dir or output_dir, f"{base_name}_original", orig_pages_data, orig_plain_text, orig_hocr_pages, options, docs_dir=output_dir, has_orig_text_layer=has_orig_text_layer, orig_plain_text=orig_plain_text, orig_pages_data=orig_pages_data)
     export_file_data(data_dir or output_dir, base_name, pages_data, full_plain_text, full_hocr_pages, options, docs_dir=output_dir, has_orig_text_layer=has_orig_text_layer, orig_plain_text=orig_plain_text, orig_pages_data=orig_pages_data)
 
+    out_docx_path = os.path.join(output_dir, "DOCX", f"{base_name}.docx") if organize_docs else os.path.join(output_dir, f"{base_name}.docx")
+    primary_out_path = out_comp_pdf or out_orig_pdf or (primary_pdf_path if os.path.exists(primary_pdf_path) else None) or (out_docx_path if os.path.exists(out_docx_path) else None)
+
     duration = time.time() - start_time
     orig_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    pdf_size_mb = os.path.getsize(primary_pdf_path) / (1024 * 1024) if os.path.exists(primary_pdf_path) else 0.0
+    pdf_size_mb = os.path.getsize(primary_out_path) / (1024 * 1024) if (primary_out_path and os.path.exists(primary_out_path)) else 0.0
     reduction_pct = ((1 - pdf_size_mb / orig_size_mb) * 100) if orig_size_mb > 0 else 0
+
+    max_orig_dpi = max((p.get("orig_dpi", 300) for p in pages_info), default=300)
+    file_orig_cmode = "grayscale" if (pages_info and all(p.get("orig_cmode") == "grayscale" for p in pages_info)) else "color"
+
+    if pages_info:
+        if total_chars_count > 0:
+            file_conf = round(sum(p.get("confidence", 0.0) * p.get("chars", 0) for p in pages_info) / float(total_chars_count), 1)
+        else:
+            file_conf = round(sum(p.get("confidence", 0.0) for p in pages_info) / float(len(pages_info)), 1)
+        min_page_conf = round(min(p.get("confidence", 0.0) for p in pages_info), 1)
+        low_conf_pages = sum(1 for p in pages_info if (p.get("confidence", 0.0) < 80.0 or p.get("chars", 0) == 0))
+    else:
+        file_conf = 0.0
+        min_page_conf = 0.0
+        low_conf_pages = 0
 
     record = {
         "filename": base_name,
         "pages": total_pages,
         "tiff_size_mb": orig_size_mb,
         "pdf_size_mb": pdf_size_mb,
+        "output_pdf": primary_pdf_path if (primary_pdf_path and os.path.exists(primary_pdf_path)) else None,
+        "output_pdf_compressed": out_comp_pdf if (out_comp_pdf and os.path.exists(out_comp_pdf)) else None,
+        "output_primary_path": primary_out_path,
         "reduction_pct": reduction_pct,
         "total_words": total_words_count,
         "total_chars": total_chars_count,
+        "confidence": file_conf,
+        "min_page_confidence": min_page_conf,
+        "low_conf_pages": low_conf_pages,
         "duration_sec": duration,
+        "orig_dpi": max_orig_dpi,
+        "orig_cmode": file_orig_cmode,
+        "target_dpi": target_dpi,
+        "target_cmode": eff_color_mode,
+        "pages_info": pages_info,
         "status": "COMPLETED"
     }
 
@@ -333,12 +608,14 @@ def process_single_file(file_path, output_dir, ocr_engine, data_dir=None, export
 
 process_single_tiff = process_single_file
 
-def batch_process_files(file_list, output_dir, data_dir=None, export_options=None, enable_auto_deskew=True, pdf_text_strategy="reuse", target_dpi=300, jpeg_quality=70, progress_callback=None, file_complete_callback=None, abort_check_fn=None):
+def batch_process_files(file_list, output_dir, data_dir=None, export_options=None, enable_auto_deskew=True, pdf_text_strategy="reuse", target_dpi=300, jpeg_quality=70, doc_type="printed", progress_callback=None, file_complete_callback=None, abort_check_fn=None):
     os.makedirs(output_dir, exist_ok=True)
     if data_dir:
         os.makedirs(data_dir, exist_ok=True)
 
-    ocr_engine = OCREngine(target_dpi=target_dpi)
+    opts = export_options or {}
+    eff_doc_type = opts.get("doc_type", doc_type)
+    ocr_engine = OCREngine(target_dpi=target_dpi, doc_type=eff_doc_type)
     total_files = len(file_list)
     results = []
     report_records = []

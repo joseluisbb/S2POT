@@ -11,11 +11,12 @@ except Exception as e:
     print(f"RapidOCR initialization warning: {e}")
 
 class OCREngine:
-    def __init__(self, preferred_lang="eng", target_dpi=300):
+    def __init__(self, preferred_lang="eng", target_dpi=300, doc_type="printed"):
         self.preferred_lang = preferred_lang
         self.target_dpi = target_dpi
+        self.doc_type = doc_type
 
-    def run_ocr_full(self, bgr_image, page_num=1, target_dpi=None):
+    def run_ocr_full(self, bgr_image, page_num=1, target_dpi=None, doc_type=None):
         """
         Runs pure ONNX OCR on BGR image and returns dict:
         {
@@ -25,7 +26,18 @@ class OCREngine:
           "illustrations": [crop_bgr_1, crop_bgr_2, ...],
           "tables": [[row1_cells], [row2_cells], ...]
         }
+        Supports doc_type="printed" (standard RapidOCR) or "handwritten" (Microsoft TrOCR cursive HTR).
         """
+        effective_doc_type = doc_type or self.doc_type
+        if effective_doc_type == "handwritten":
+            try:
+                from core.htr_engine import TrOCREngine
+                htr = TrOCREngine.get_instance()
+                if htr.is_ready():
+                    return htr.process_handwritten_page(bgr_image, page_num=page_num, target_dpi=target_dpi or self.target_dpi)
+            except Exception as e:
+                print(f"TrOCR engine notice, falling back to standard OCR: {e}")
+
         dpi = target_dpi or self.target_dpi
         results = []
         lines_text = []
@@ -108,7 +120,9 @@ class OCREngine:
 
     def _detect_tables_and_illustrations(self, bgr_image, ocr_results):
         """
-        Extract non-text graphical illustration crops and detect tabular grid structures.
+        Extract only genuine non-text graphical illustrations/iconography crops
+        (excluding any regions that overlap with extracted OCR text boxes, frames, or noise)
+        and detect tabular grid structures.
         """
         illustrations = []
         tables = []
@@ -117,28 +131,147 @@ class OCREngine:
             return illustrations, tables
 
         h_img, w_img = bgr_image.shape[:2]
-        mask = np.ones((h_img, w_img), dtype=np.uint8) * 255
+        page_area = float(h_img * w_img)
+        if page_area <= 0:
+            return illustrations, tables
 
+        # 1. Build generous text mask so text strokes, ascenders/descenders, and fringes are zeroed out
+        text_mask = np.ones((h_img, w_img), dtype=np.uint8) * 255
+        text_boxes = []
         for item in ocr_results:
             x0, y0, x1, y1 = item["bbox"]
-            margin = 2
-            x0_m, y0_m = max(0, x0 - margin), max(0, y0 - margin)
-            x1_m, y1_m = min(w_img, x1 + margin), min(h_img, y1 + margin)
-            mask[y0_m:y1_m, x0_m:x1_m] = 0
+            bw = max(1, x1 - x0)
+            bh = max(1, y1 - y0)
+            txt = str(item.get("text", "")).strip()
+            text_boxes.append((x0, y0, x1, y1, bw * bh, len(txt)))
 
+            pad_x = max(12, int(bh * 0.50))
+            pad_y = max(10, int(bh * 0.40))
+            x0_m, y0_m = max(0, x0 - pad_x), max(0, y0 - pad_y)
+            x1_m, y1_m = min(w_img, x1 + pad_x), min(h_img, y1 + pad_y)
+            text_mask[y0_m:y1_m, x0_m:x1_m] = 0
+
+        # 2. Adaptive foreground thresholding (avoids treating paper shading/tint as ink)
         gray = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
-        _, thresh = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY_INV)
-        graphic_mask = cv2.bitwise_and(thresh, mask)
+        otsu_val, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        eff_thresh = min(195, max(115, int(otsu_val)))
+        _, ink_mask = cv2.threshold(gray, eff_thresh, 255, cv2.THRESH_BINARY_INV)
 
-        contours, _ = cv2.findContours(graphic_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        min_illustration_area = (h_img * w_img) * 0.005
+        # Remove ONLY thin long horizontal/vertical table/frame lines (preserving solid/textured graphics!)
+        horiz_k = cv2.getStructuringElement(cv2.MORPH_RECT, (max(45, w_img // 12), 1))
+        vert_k = cv2.getStructuringElement(cv2.MORPH_RECT, (1, max(45, h_img // 12)))
+        horiz_lines = cv2.morphologyEx(ink_mask, cv2.MORPH_OPEN, horiz_k)
+        vert_lines = cv2.morphologyEx(ink_mask, cv2.MORPH_OPEN, vert_k)
+        thick_k = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+        thick_graphics = cv2.morphologyEx(ink_mask, cv2.MORPH_OPEN, thick_k)
+        thin_frame_lines = cv2.bitwise_and(cv2.bitwise_or(horiz_lines, vert_lines), cv2.bitwise_not(thick_graphics))
 
+        graphic_mask = cv2.bitwise_and(ink_mask, cv2.bitwise_not(thin_frame_lines))
+        graphic_mask = cv2.bitwise_and(graphic_mask, text_mask)
+
+        # Clean small isolated noise speckles and consolidate coherent graphic elements
+        open_k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        graphic_mask = cv2.morphologyEx(graphic_mask, cv2.MORPH_OPEN, open_k)
+        close_k = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+        closed_mask = cv2.morphologyEx(graphic_mask, cv2.MORPH_CLOSE, close_k)
+        closed_mask = cv2.bitwise_and(closed_mask, text_mask)
+
+        contours, _ = cv2.findContours(closed_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        min_illustration_area = page_area * 0.012
+        min_side = max(65, int(min(h_img, w_img) * 0.055))
+
+        candidate_rects = []
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
-            area = w * h
-            if area > min_illustration_area and w > 40 and h > 40 and w < w_img * 0.95 and h < h_img * 0.95:
-                crop = bgr_image[y:y+h, x:x+w].copy()
-                illustrations.append(crop)
+            area = float(w * h)
+
+            # Size & aspect ratio bounds for real iconography / illustrations
+            if area < min_illustration_area or w < min_side or h < min_side:
+                continue
+            if w > w_img * 0.88 or h > h_img * 0.85 or area > page_area * 0.72:
+                continue
+
+            aspect = float(w) / float(h)
+            if aspect < 0.22 or aspect > 4.2:
+                continue
+
+            # Ignore scanner border strips touching outer edges of the page
+            if x <= 4 or y <= 4 or (x + w) >= (w_img - 4) or (y + h) >= (h_img - 4):
+                if area < page_area * 0.05:
+                    continue
+
+            # Strict check: reject if this rectangle overlaps with extracted OCR text boxes
+            overlapping_boxes = 0
+            overlapping_chars = 0
+            total_text_inter = 0.0
+            for bx0, by0, bx1, by1, b_area, b_chars in text_boxes:
+                ix0 = max(x, bx0)
+                iy0 = max(y, by0)
+                ix1 = min(x + w, bx1)
+                iy1 = min(y + h, by1)
+                if ix1 > ix0 and iy1 > iy0:
+                    inter = float((ix1 - ix0) * (iy1 - iy0))
+                    total_text_inter += inter
+                    if inter / float(max(1, b_area)) >= 0.15:
+                        overlapping_boxes += 1
+                        overlapping_chars += b_chars
+
+            if overlapping_boxes >= 1 and (overlapping_chars >= 2 or (total_text_inter / area) >= 0.015):
+                continue
+            if (total_text_inter / area) >= 0.02:
+                continue
+
+            # Verify genuine graphical/iconographic content inside the core (reject hollow frames & faint stains)
+            roi_raw = graphic_mask[y:y+h, x:x+w]
+            overall_density = np.count_nonzero(roi_raw) / area
+            if overall_density < 0.10 or overall_density > 0.85:
+                continue
+
+            ix0, iy0 = x + int(w * 0.12), y + int(h * 0.12)
+            ix1, iy1 = x + int(w * 0.88), y + int(h * 0.88)
+            core_raw = graphic_mask[iy0:iy1, ix0:ix1]
+            if core_raw.size == 0:
+                continue
+            core_density = np.count_nonzero(core_raw) / float(core_raw.size)
+            if core_density < 0.12 or core_density > 0.85:
+                continue
+
+            # Check grayscale contrast/variation and connected graphical coherence
+            roi_gray = gray[y:y+h, x:x+w]
+            if float(np.std(roi_gray)) < 20.0:
+                continue
+
+            roi_closed = closed_mask[y:y+h, x:x+w]
+            num_labels, _, stats, _ = cv2.connectedComponentsWithStats(roi_closed, connectivity=8)
+            if num_labels <= 1:
+                continue
+            max_cc_area = float(np.max(stats[1:, cv2.CC_STAT_AREA]))
+            if (max_cc_area / area) < 0.06:
+                continue
+
+            candidate_rects.append((x, y, w, h, area))
+
+        # Deduplicate overlapping / nested illustration rectangles
+        candidate_rects.sort(key=lambda r: r[4], reverse=True)
+        accepted_rects = []
+        for rx, ry, rw, rh, rarea in candidate_rects:
+            is_dup = False
+            for ax, ay, aw, ah, _ in accepted_rects:
+                ix0, iy0 = max(rx, ax), max(ry, ay)
+                ix1, iy1 = min(rx + rw, ax + aw), min(ry + rh, ay + ah)
+                if ix1 > ix0 and iy1 > iy0:
+                    inter = float((ix1 - ix0) * (iy1 - iy0))
+                    if inter / rarea > 0.30:
+                        is_dup = True
+                        break
+            if not is_dup:
+                accepted_rects.append((rx, ry, rw, rh, rarea))
+
+        # Sort top-to-bottom in reading order
+        accepted_rects.sort(key=lambda r: (r[1], r[0]))
+        for rx, ry, rw, rh, _ in accepted_rects:
+            crop = bgr_image[ry:ry+rh, rx:rx+rw].copy()
+            illustrations.append(crop)
 
         if len(ocr_results) >= 4:
             sorted_boxes = sorted(ocr_results, key=lambda b: (b["bbox"][1], b["bbox"][0]))

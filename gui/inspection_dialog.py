@@ -1,4 +1,4 @@
-﻿import os
+import os
 import threading
 import customtkinter as ctk
 from core.i18n import get_text
@@ -58,7 +58,7 @@ class InspectionProgressDialog(ctk.CTkToplevel):
         self.lbl_title = ctk.CTkLabel(
             container,
             text=f"🔍 {self._tr('inspect_dialog_running')}",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=15, weight="bold"),
             text_color="#3498db"
         )
         self.lbl_title.pack(anchor="w", pady=(0, 10))
@@ -70,8 +70,8 @@ class InspectionProgressDialog(ctk.CTkToplevel):
         self.lbl_status = ctk.CTkLabel(
             container,
             text=f"0 / {len(self.file_paths)} ficheiros...",
-            font=ctk.CTkFont(size=11),
-            text_color="gray70",
+            font=ctk.CTkFont(size=12),
+            text_color=("gray30", "gray70"),
             anchor="w"
         )
         self.lbl_status.pack(fill="x", pady=(0, 14))
@@ -82,7 +82,9 @@ class InspectionProgressDialog(ctk.CTkToplevel):
         self.btn_cancel = ctk.CTkButton(
             btn_row,
             text=self._tr("inspect_dialog_cancel"),
-            width=100,
+            width=105,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             fg_color="#c0392b",
             hover_color="#962d22",
             command=self._on_cancel

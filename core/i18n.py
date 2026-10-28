@@ -400,13 +400,13 @@ TRANSLATIONS = {
         "ar": "دقة OCR (DPI):"
     },
     "btn_inspect": {
-        "pt_PT": "🔍 Inspecionar Ficheiros",
-        "en": "🔍 Inspect Files",
-        "es": "🔍 Inspeccionar Archivos",
-        "fr": "🔍 Inspecter Fichiers",
-        "zh": "🔍 检查文件",
-        "ru": "🔍 Инспектировать файлы",
-        "ar": "🔍 فحص الملفات"
+        "pt_PT": "🗗 🔍 Inspecionar Ficheiros",
+        "en": "🗗 🔍 Inspect Files",
+        "es": "🗗 🔍 Inspeccionar Archivos",
+        "fr": "🗗 🔍 Inspecter Fichiers",
+        "zh": "🗗 🔍 检查文件",
+        "ru": "🗗 🔍 Инспектировать файлы",
+        "ar": "🗗 🔍 فحص الملفات"
     },
     "inspect_dialog_title": {
         "pt_PT": "Inspeção de Ficheiros",
@@ -508,13 +508,13 @@ TRANSLATIONS = {
         "ar": "الصيغة"
     },
     "col_pages_chars": {
-        "pt_PT": "Páginas / Chars",
-        "en": "Pages / Chars",
-        "es": "Páginas / Caract.",
-        "fr": "Pages / Caract.",
-        "zh": "页数 / 字符",
-        "ru": "Страницы / Симв.",
-        "ar": "الصفحات / الحروف"
+        "pt_PT": "Págs / Chars (Qual. OCR)",
+        "en": "Pages / Chars (OCR Qual.)",
+        "es": "Págs / Caract. (Cal. OCR)",
+        "fr": "Pages / Caract. (Qual. OCR)",
+        "zh": "页数 / 字符 (OCR 质量)",
+        "ru": "Стр. / Симв. (Кач. OCR)",
+        "ar": "الصفحات / الحروف (جودة OCR)"
     },
     "col_size": {
         "pt_PT": "Tamanho (Antes / Depois)",
@@ -643,13 +643,13 @@ TRANSLATIONS = {
         "ar": "أبيض/أسود"
     },
     "btn_tune_page": {
-        "pt_PT": "🔍 Ver Página",
-        "en": "🔍 View Page",
-        "es": "🔍 Ver Página",
-        "fr": "🔍 Voir la page",
-        "zh": "🔍 查看页面",
-        "ru": "🔍 Просмотр страницы",
-        "ar": "🔍 عرض الصفحة"
+        "pt_PT": "🗗 🔍 Ver Páginas",
+        "en": "🗗 🔍 View Pages",
+        "es": "🗗 🔍 Ver Páginas",
+        "fr": "🗗 🔍 Voir les pages",
+        "zh": "🗗 🔍 查看页面",
+        "ru": "🗗 🔍 Просмотр страниц",
+        "ar": "🗗 🔍 عرض الصفحات"
     },
     "page_viewer_title": {
         "pt_PT": "S2POT - Visualizador de Páginas",
@@ -669,6 +669,38 @@ TRANSLATIONS = {
         "ru": "Страницы",
         "ar": "الصفحات"
     },
+    "thumb_ocr_yes": {"pt_PT": "✔ Com OCR", "en": "✔ OCR text", "es": "✔ Con OCR", "fr": "✔ Texte OCR"},
+    "thumb_ocr_no": {"pt_PT": "Sem texto\nOCR", "en": "No OCR\ntext", "es": "Sin texto\nOCR", "fr": "Pas de\ntexte OCR"},
+    "thumb_ocr_edited": {"pt_PT": "✍ Corrigido", "en": "✍ Corrected", "es": "✍ Corregido", "fr": "✍ Corrigé"},
+    "thumb_chars": {"pt_PT": "{n} car.", "en": "{n} chars", "es": "{n} car.", "fr": "{n} car."},
+    "btn_edit_ocr_text": {"pt_PT": "🗗 📝 Ver / Editar Texto OCR", "en": "🗗 📝 View / Edit OCR Text", "es": "🗗 📝 Ver / Editar Texto OCR", "fr": "🗗 📝 Voir / Modifier le texte OCR"},
+    "tt_btn_edit_ocr_text": {
+        "pt_PT": "Mostra o texto OCR da página selecionada e permite corrigir erros. Ao gravar, o texto corrigido é incorporado em todos os ficheiros de resultado (PDF, Word, TXT, hOCR, coordenadas) e nos metadados.",
+        "en": "Shows the OCR text of the selected page and lets you fix errors. On save, the corrected text is written into every result file (PDF, Word, TXT, hOCR, coordinates) and the metadata."
+    },
+    "ocr_editor_title": {"pt_PT": "Texto OCR", "en": "OCR Text", "es": "Texto OCR", "fr": "Texte OCR"},
+    "ocr_editor_hint": {
+        "pt_PT": "Cada linha do texto corresponde a uma linha da página. Mantenha a ordem das linhas para que o texto fique alinhado com a imagem no PDF.",
+        "en": "Each line of text corresponds to one line of the page. Keep the line order so the text stays aligned with the image in the PDF."
+    },
+    "ocr_editor_source": {"pt_PT": "Origem do texto: {src}", "en": "Text source: {src}"},
+    "ocr_editor_stats": {"pt_PT": "{chars} caracteres  |  {lines} linhas  |  Qualidade estimada: {conf}", "en": "{chars} characters  |  {lines} lines  |  Estimated quality: {conf}"},
+    "ocr_editor_modified": {"pt_PT": "● Alterado", "en": "● Modified"},
+    "ocr_editor_save": {"pt_PT": "💾 Guardar e Atualizar Ficheiros", "en": "💾 Save and Update Files"},
+    "ocr_editor_revert": {"pt_PT": "↺ Repor Original", "en": "↺ Revert"},
+    "ocr_editor_saving": {"pt_PT": "A atualizar ficheiros…", "en": "Updating files…"},
+    "ocr_editor_no_results": {
+        "pt_PT": "Este documento ainda não tem ficheiros de resultado (PDF, Word, TXT, …). O texto é mostrado apenas para consulta; processe o documento primeiro para poder corrigir o OCR.",
+        "en": "This document has no result files yet (PDF, Word, TXT, …). The text is shown read-only; process the document first to be able to correct the OCR."
+    },
+    "ocr_editor_done_title": {"pt_PT": "Texto OCR atualizado", "en": "OCR text updated"},
+    "ocr_editor_done_msg": {"pt_PT": "O texto corrigido foi incorporado em {n} ficheiro(s):", "en": "The corrected text was written into {n} file(s):"},
+    "ocr_editor_errors": {"pt_PT": "Não foi possível atualizar:", "en": "Could not update:"},
+    "ocr_editor_confirm_close": {"pt_PT": "Existem alterações não gravadas. Fechar sem gravar?", "en": "There are unsaved changes. Close without saving?"},
+    "lens_pin_hint": {
+        "pt_PT": "Lente: duplo clique esquerdo fixa · 4 cantos redimensionam (zoom expande para baixo/direita) · duplo clique remove",
+        "en": "Lens: left double-click pins · 4 corners resize (zoom expands right/down) · double-click removes"
+    },
     "tt_btn_tune_selected_page": {
         "pt_PT": "Abre a página selecionada na janela de calibração para afinar cor, resolução e qualidade.",
         "en": "Opens the selected page in the tuning studio window to adjust color, resolution, and quality.",
@@ -677,6 +709,23 @@ TRANSLATIONS = {
         "zh": "在调优窗口中打开选定页面以调整颜色、分辨率和质量。",
         "ru": "Открывает выбранную страницу в окне настройки для регулировки цвета, разрешения и качества.",
         "ar": "يفتح الصفحة المحددة في نافذة الضبط لضبط اللون والدقة والجودة."
+    },
+    "thumb_mode_list": {
+        "pt_PT": "Lista", "en": "List", "es": "Lista", "fr": "Liste", "zh": "列表", "ru": "Список", "ar": "قائمة"
+    },
+    "thumb_mode_grid": {
+        "pt_PT": "Matriz", "en": "Grid", "es": "Matriz", "fr": "Grille", "zh": "矩阵", "ru": "Сетка", "ar": "مصفوفة"
+    },
+    "thumb_grid_cols": {
+        "pt_PT": "Cols:", "en": "Cols:", "es": "Cols:", "fr": "Cols:", "zh": "列数:", "ru": "Кол-во:", "ar": "أعمدة:"
+    },
+    "tt_thumb_mode": {
+        "pt_PT": "Alterna entre a visualização em lista detalhada e a visualização em matriz de miniaturas.",
+        "en": "Toggles between detailed list view and thumbnail grid view."
+    },
+    "tt_thumb_cols": {
+        "pt_PT": "Número de colunas na visualização em matriz de miniaturas.",
+        "en": "Number of columns in the thumbnail grid view."
     },
     "selected_badge": {
         "pt_PT": "Selecionados: {sel} de {tot}",
@@ -1224,13 +1273,67 @@ TRANSLATIONS = {
         "ar": "تطبيق على هذه الصفحة فقط"
     },
     "btn_explore_results": {
-        "pt_PT": "📂 Explorar Pasta de Resultados",
-        "en": "📂 Explore Results Folder",
-        "es": "📂 Explorar Carpeta de Resultados",
-        "fr": "📂 Explorer le dossier de résultats",
-        "zh": "📂 浏览结果文件夹",
-        "ru": "📂 Просмотреть результаты",
-        "ar": "📂 استعراض مجلد النتائج"
+        "pt_PT": "🗗 📂 Explorador de Resultados",
+        "en": "🗗 📂 Results Explorer",
+        "es": "🗗 📂 Explorador de Resultados",
+        "fr": "🗗 📂 Explorateur de résultats",
+        "zh": "🗗 📂 结果浏览器",
+        "ru": "🗗 📂 Просмотр результатов",
+        "ar": "🗗 📂 مستعرض النتائج"
+    },
+    "col_date_modified": {
+        "pt_PT": "Data Modificação",
+        "en": "Date Modified",
+        "es": "Fecha Modificación",
+        "fr": "Date de modification",
+        "zh": "修改日期",
+        "ru": "Дата изменения",
+        "ar": "تاريخ التعديل"
+    },
+    "folder_label": {
+        "pt_PT": "Pasta:",
+        "en": "Folder:",
+        "es": "Carpeta:",
+        "fr": "Dossier:",
+        "zh": "文件夹:",
+        "ru": "Папка:",
+        "ar": "المجلد:"
+    },
+    "btn_up_folder": {
+        "pt_PT": "⬆ Subir",
+        "en": "⬆ Up",
+        "es": "⬆ Subir",
+        "fr": "⬆ Parent",
+        "zh": "⬆ 上一级",
+        "ru": "⬆ Вверх",
+        "ar": "⬆ للأعلى"
+    },
+    "btn_close": {
+        "pt_PT": "Fechar",
+        "en": "Close",
+        "es": "Cerrar",
+        "fr": "Fermer",
+        "zh": "关闭",
+        "ru": "Закрыть",
+        "ar": "إغلاق"
+    },
+    "folder_type": {
+        "pt_PT": "Pasta",
+        "en": "Folder",
+        "es": "Carpeta",
+        "fr": "Dossier",
+        "zh": "文件夹",
+        "ru": "Папка",
+        "ar": "مجلد"
+    },
+    "files_count": {
+        "pt_PT": "{count} ficheiro(s)",
+        "en": "{count} file(s)",
+        "es": "{count} archivo(s)",
+        "fr": "{count} fichier(s)",
+        "zh": "{count} 个文件",
+        "ru": "{count} файл(ов)",
+        "ar": "{count} ملف(ات)"
     },
     "results_browser_title": {
         "pt_PT": "S2POT — Explorador de Resultados",
@@ -1253,11 +1356,47 @@ TRANSLATIONS = {
     "tab_data": {
         "pt_PT": "Dados (TXT / Excel / JSON)",
         "en": "Data (TXT / Excel / JSON)",
-        "es": "Datos (TXT / Excel / JSON)",
+        "es": "Dados (TXT / Excel / JSON)",
         "fr": "Données (TXT / Excel / JSON)",
         "zh": "数据 (TXT / Excel / JSON)",
         "ru": "Данные (TXT / Excel / JSON)",
         "ar": "البيانات (TXT / Excel / JSON)"
+    },
+    "tab_by_document": {
+        "pt_PT": "🗂️ Por Documento (Virtual)",
+        "en": "🗂️ By Document (Virtual)",
+        "es": "🗂️ Por Documento (Virtual)",
+        "fr": "🗂️ Par Document (Virtuel)",
+        "zh": "🗂️ 按文档分组 (虚拟)",
+        "ru": "🗂️ По документам (Вирт.)",
+        "ar": "🗂️ حسب المستند (افتراضي)"
+    },
+    "virtual_doc_folder_type": {
+        "pt_PT": "Pasta Virtual ({count} fich.)",
+        "en": "Virtual Folder ({count} files)",
+        "es": "Carpeta Virtual ({count} arch.)",
+        "fr": "Dossier Virtuel ({count} fich.)",
+        "zh": "虚拟文件夹 ({count} 个文件)",
+        "ru": "Вирт. папка ({count} файл.)",
+        "ar": "مجلد افتراضي ({count} ملف)"
+    },
+    "virtual_audit_group": {
+        "pt_PT": "Relatórios de Auditoria (Lote)",
+        "en": "Batch Audit Reports",
+        "es": "Informes de Auditoría (Lote)",
+        "fr": "Rapports d'audit (Lot)",
+        "zh": "批处理审计报告",
+        "ru": "Отчеты аудита (Пакет)",
+        "ar": "تقارير تدقيق الدفعة"
+    },
+    "virtual_view_banner": {
+        "pt_PT": "🗂️ Pastas Virtuais por Documento  [Documentos: {docs_dir}  |  Dados: {data_dir}]",
+        "en": "🗂️ Virtual Folders by Document  [Documents: {docs_dir}  |  Data: {data_dir}]",
+        "es": "🗂️ Carpetas Virtuales por Documento  [Documentos: {docs_dir}  |  Datos: {data_dir}]",
+        "fr": "🗂️ Dossiers Virtuels par Document  [Documents: {docs_dir}  |  Données: {data_dir}]",
+        "zh": "🗂️ 按文档虚拟文件夹  [文档: {docs_dir}  |  数据: {data_dir}]",
+        "ru": "🗂️ Виртуальные папки по документам  [Документы: {docs_dir}  |  Данные: {data_dir}]",
+        "ar": "🗂️ مجلدات افتراضية حسب المستند  [المستندات: {docs_dir}  |  البيانات: {data_dir}]"
     },
     "btn_open_file": {
         "pt_PT": "Abrir Ficheiro",
@@ -1278,22 +1417,31 @@ TRANSLATIONS = {
         "ar": "إظهار في المجلد"
     },
     "btn_inspect_s2pit": {
-        "pt_PT": "Ver Página",
-        "en": "View Page",
-        "es": "Ver Página",
-        "fr": "Voir la page",
-        "zh": "查看页面",
-        "ru": "Просмотр страницы",
-        "ar": "عرض الصفحة"
+        "pt_PT": "🗗 🔍 Ver Páginas",
+        "en": "🗗 🔍 View Pages",
+        "es": "🗗 🔍 Ver Páginas",
+        "fr": "🗗 🔍 Voir les pages",
+        "zh": "🗗 🔍 查看页面",
+        "ru": "🗗 🔍 Просмотр страниц",
+        "ar": "🗗 🔍 عرض الصفحات"
     },
     "btn_tune_selected_page": {
-        "pt_PT": "🔍 Ver Página",
-        "en": "🔍 View Page",
-        "es": "🔍 Ver Página",
-        "fr": "🔍 Voir la page",
-        "zh": "🔍 查看页面",
-        "ru": "🔍 Просмотр страницы",
-        "ar": "🔍 عرض الصفحة"
+        "pt_PT": "🗗 🔍 Ver Páginas",
+        "en": "🗗 🔍 View Pages",
+        "es": "🗗 🔍 Ver Páginas",
+        "fr": "🗗 🔍 Voir les pages",
+        "zh": "🗗 🔍 查看页面",
+        "ru": "🗗 🔍 Просмотр страниц",
+        "ar": "🗗 🔍 عرض الصفحات"
+    },
+    "loading_results_progress": {
+        "pt_PT": "⏳ A ler dados ({curr}/{total})...",
+        "en": "⏳ Reading data ({curr}/{total})...",
+        "es": "⏳ Leyendo datos ({curr}/{total})...",
+        "fr": "⏳ Lecture des données ({curr}/{total})...",
+        "zh": "⏳ 正在读取数据 ({curr}/{total})...",
+        "ru": "⏳ Чтение данных ({curr}/{total})...",
+        "ar": "⏳ جاري قراءة البيانات ({curr}/{total})..."
     },
     "page_tuning_title": {
         "pt_PT": "S2PIT — Estúdio de Afinação & Lente",
@@ -1321,6 +1469,177 @@ TRANSLATIONS = {
         "zh": "打开结果浏览器以检查生成的文件",
         "ru": "Открыть просмотр результатов для проверки созданных файлов",
         "ar": "فتح مستعرض النتائج لفحص الملفات المنشأة"
+    },
+    "lite_title": {
+        "pt_PT": "S2POT Lite — OCR Expresso",
+        "en": "S2POT Lite — Express OCR",
+        "es": "S2POT Lite — OCR Rápido",
+        "fr": "S2POT Lite — OCR Express",
+        "zh": "S2POT Lite — 极速 OCR",
+        "ru": "S2POT Lite — Экспресс OCR",
+        "ar": "S2POT Lite — التعرف الضوئي السريع"
+    },
+    "lite_subtitle": {
+        "pt_PT": "Modo Urgente • Ficheiro único • Resultados imediatos",
+        "en": "Urgent Mode • Single file • Instant results",
+        "es": "Modo Urgente • Archivo único • Resultados inmediatos",
+        "fr": "Mode Urgent • Fichier unique • Résultats immédiats",
+        "zh": "紧急模式 • 单文件处理 • 即时结果",
+        "ru": "Срочный режим • Один файл • Мгновенный результат",
+        "ar": "الوضع السريع • ملف واحد • نتائج فورية"
+    },
+    "lite_drop_title": {
+        "pt_PT": "Arraste e solte o ficheiro aqui",
+        "en": "Drag and drop your file here",
+        "es": "Arrastra y suelta el archivo aquí",
+        "fr": "Glissez et déposez votre fichier ici",
+        "zh": "将文件拖放到此处",
+        "ru": "Перетащите файл сюда",
+        "ar": "اسحب الملف وأفلته هنا"
+    },
+    "lite_drop_sub": {
+        "pt_PT": "ou clique para procurar (PDF, TIFF, JPG, PNG, BMP)",
+        "en": "or click to browse on computer (PDF, TIFF, JPG, PNG, BMP)",
+        "es": "o haga clic para buscar (PDF, TIFF, JPG, PNG, BMP)",
+        "fr": "ou cliquez pour parcourir (PDF, TIFF, JPG, PNG, BMP)",
+        "zh": "或点击浏览电脑上的文件 (PDF, TIFF, JPG, PNG, BMP)",
+        "ru": "или нажмите для выбора (PDF, TIFF, JPG, PNG, BMP)",
+        "ar": "أو انقر للتصفح (PDF, TIFF, JPG, PNG, BMP)"
+    },
+    "lite_change_file": {
+        "pt_PT": "✖ Remover / Escolher outro ficheiro",
+        "en": "✖ Remove / Choose another file",
+        "es": "✖ Quitar / Elegir otro archivo",
+        "fr": "✖ Supprimer / Choisir un autre fichier",
+        "zh": "✖ 移除 / 选择其他文件",
+        "ru": "✖ Удалить / Выбрать другой файл",
+        "ar": "✖ إزالة / اختيار ملف آخر"
+    },
+    "lite_output_folder": {
+        "pt_PT": "📁 Pasta de Resultados:",
+        "en": "📁 Output Folder:",
+        "es": "📁 Carpeta de Resultados:",
+        "fr": "📁 Dossier de Sortie:",
+        "zh": "📁 结果保存目录:",
+        "ru": "📁 Папка результатов:",
+        "ar": "📁 مجلد المخرجات:"
+    },
+    "lite_formats_title": {
+        "pt_PT": "Formatos de Saída Desejados:",
+        "en": "Desired Output Formats:",
+        "es": "Formatos de Salida Deseados:",
+        "fr": "Formats de Sortie Souhaités:",
+        "zh": "所需输出格式:",
+        "ru": "Желаемые форматы вывода:",
+        "ar": "تنسيقات الإخراج المطلوبة:"
+    },
+    "lite_opt_txt": {
+        "pt_PT": "Texto (_OCR.txt)",
+        "en": "Text (_OCR.txt)",
+        "es": "Texto (_OCR.txt)",
+        "fr": "Texte (_OCR.txt)",
+        "zh": "文本 (_OCR.txt)",
+        "ru": "Текст (_OCR.txt)",
+        "ar": "نص (_OCR.txt)"
+    },
+    "lite_opt_docx": {
+        "pt_PT": "Word (_OCR.docx)",
+        "en": "Word (_OCR.docx)",
+        "es": "Word (_OCR.docx)",
+        "fr": "Word (_OCR.docx)",
+        "zh": "Word (_OCR.docx)",
+        "ru": "Word (_OCR.docx)",
+        "ar": "Word (_OCR.docx)"
+    },
+    "lite_opt_pdf": {
+        "pt_PT": "PDF pesquisável 120 DPI (_OCR.pdf)",
+        "en": "Searchable PDF 120 DPI (_OCR.pdf)",
+        "es": "PDF con búsqueda 120 DPI (_OCR.pdf)",
+        "fr": "PDF avec recherche 120 DPI (_OCR.pdf)",
+        "zh": "120 DPI 可搜索 PDF (_OCR.pdf)",
+        "ru": "PDF с поиском 120 DPI (_OCR.pdf)",
+        "ar": "PDF قابل للبحث 120 DPI (_OCR.pdf)"
+    },
+    "lite_btn_start": {
+        "pt_PT": "🚀 Executar OCR Expresso",
+        "en": "🚀 Start Express OCR",
+        "es": "🚀 Iniciar OCR Rápido",
+        "fr": "🚀 Lancer l'OCR Express",
+        "zh": "🚀 开始极速 OCR",
+        "ru": "🚀 Запустить Экспресс OCR",
+        "ar": "🚀 بدء المعالجة السريعة"
+    },
+    "doc_type_label": {
+        "pt_PT": "Tipo de Texto:",
+        "en": "Text Type:",
+        "es": "Tipo de Texto:",
+        "fr": "Type de Texte:",
+        "zh": "文本类型:",
+        "ru": "Тип текста:",
+        "ar": "نوع النص:"
+    },
+    "doc_type_printed": {
+        "pt_PT": "Impresso (Padrão)",
+        "en": "Printed (Standard)",
+        "es": "Impreso (Estándar)",
+        "fr": "Imprimé (Standard)",
+        "zh": "印刷体 (标准)",
+        "ru": "Печатный (Стандарт)",
+        "ar": "مطبوع (قياسي)"
+    },
+    "doc_type_handwritten": {
+        "pt_PT": "Caligrafia Cursiva (TrOCR)",
+        "en": "Cursive Handwriting (TrOCR)",
+        "es": "Caligrafía Cursiva (TrOCR)",
+        "fr": "Écriture Cursive (TrOCR)",
+        "zh": "手写草体 (TrOCR)",
+        "ru": "Рукописный курсив (TrOCR)",
+        "ar": "خط يد متصل (TrOCR)"
+    },
+    "lite_btn_cancel": {
+        "pt_PT": "⏹ Cancelar Processamento",
+        "en": "⏹ Cancel Processing",
+        "es": "⏹ Cancelar Procesamiento",
+        "fr": "⏹ Annuler le Traitement",
+        "zh": "⏹ 取消处理",
+        "ru": "⏹ Отменить обработку",
+        "ar": "⏹ إلغاء المعالجة"
+    },
+    "lite_summary_title": {
+        "pt_PT": "Resumo Quantitativo do OCR",
+        "en": "Quantitative OCR Summary",
+        "es": "Resumen Cuantitativo del OCR",
+        "fr": "Résumé Quantitatif de l'OCR",
+        "zh": "OCR 结果量化统计",
+        "ru": "Количественный отчет OCR",
+        "ar": "ملخص كمي للتعرف الضوئي"
+    },
+    "lite_btn_copy_text": {
+        "pt_PT": "📋 Copiar Texto OCR",
+        "en": "📋 Copy OCR Text",
+        "es": "📋 Copiar Texto OCR",
+        "fr": "📋 Copier le Texte OCR",
+        "zh": "📋 复制 OCR 文本",
+        "ru": "📋 Копировать текст OCR",
+        "ar": "📋 نسخ نص OCR"
+    },
+    "lite_copied_success": {
+        "pt_PT": "✓ Texto copiado para a Área de Transferência!",
+        "en": "✓ Text copied to Clipboard!",
+        "es": "✓ ¡Texto copiado al portapapeles!",
+        "fr": "✓ Texte copié dans le presse-papiers !",
+        "zh": "✓ 文本已复制到剪贴板！",
+        "ru": "✓ Текст скопирован в буфер обмена!",
+        "ar": "✓ تم نسخ النص إلى الحافظة!"
+    },
+    "lite_btn_toggle_details": {
+        "pt_PT": "Ver Detalhe por Página",
+        "en": "View Page Details",
+        "es": "Ver Detalle por Página",
+        "fr": "Voir le Détail par Page",
+        "zh": "查看各页详情",
+        "ru": "Подробнее по страницам",
+        "ar": "عرض تفاصيل كل صفحة"
     }
 }
 

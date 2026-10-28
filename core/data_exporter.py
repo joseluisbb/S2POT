@@ -118,14 +118,7 @@ def export_file_data(data_dir, base_name, pages_data, full_plain_text, full_hocr
         os.makedirs(target_words_dir, exist_ok=True)
         json_path = os.path.join(target_words_dir, f"{base_name}_words.json")
         try:
-            payload = {
-                "filename": base_name,
-                "total_words": len(words_list),
-                "total_pages": len(pages_data),
-                "words": words_list
-            }
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
+            write_words_json(json_path, base_name, words_list, len(pages_data))
         except Exception as e:
             print(f"Error saving Words JSON file: {e}")
 
@@ -134,11 +127,7 @@ def export_file_data(data_dir, base_name, pages_data, full_plain_text, full_hocr
         os.makedirs(target_words_dir, exist_ok=True)
         csv_path = os.path.join(target_words_dir, f"{base_name}_words.csv")
         try:
-            with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Filename", "Page", "Word_Number", "Word_Text", "X0_px", "Y0_px", "X1_px", "Y1_px", "Width_px", "Height_px", "Font_Size_pt", "Font_Weight", "Font_Family"])
-                for w in words_list:
-                    writer.writerow([w["filename"], w["page"], w["word_num"], w["text"], w["x0"], w["y0"], w["x1"], w["y1"], w["width"], w["height"], w["font_size_pt"], w["font_weight"], w["font_family"]])
+            write_words_csv(csv_path, words_list)
         except Exception as e:
             print(f"Error saving Words CSV file: {e}")
 
@@ -147,36 +136,68 @@ def export_file_data(data_dir, base_name, pages_data, full_plain_text, full_hocr
         os.makedirs(target_words_dir, exist_ok=True)
         xlsx_path = os.path.join(target_words_dir, f"{base_name}_words.xlsx")
         try:
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "OCR Word Coordinates"
-
-            headers = ["Filename", "Page", "Word Number", "Word Text", "X0 (px)", "Y0 (px)", "X1 (px)", "Y1 (px)", "Width (px)", "Height (px)", "Font Size (pt)", "Weight", "Family"]
-            ws.append(headers)
-
-            header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-            header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-
-            for col_idx in range(1, len(headers) + 1):
-                cell = ws.cell(row=1, column=col_idx)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-            for w in words_list:
-                ws.append([w["filename"], w["page"], w["word_num"], w["text"], w["x0"], w["y0"], w["x1"], w["y1"], w["width"], w["height"], w["font_size_pt"], w["font_weight"], w["font_family"]])
-
-            for col in ws.columns:
-                max_len = max(len(str(cell.value or "")) for cell in col)
-                col_letter = get_column_letter(col[0].column)
-                ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
-
-            wb.save(xlsx_path)
+            write_words_xlsx(xlsx_path, words_list)
         except Exception as e:
             print(f"Error saving Words Excel file: {e}")
 
 
+WORDS_CSV_HEADERS = ["Filename", "Page", "Word_Number", "Word_Text", "X0_px", "Y0_px", "X1_px", "Y1_px", "Width_px", "Height_px", "Font_Size_pt", "Font_Weight", "Font_Family"]
+WORDS_XLSX_HEADERS = ["Filename", "Page", "Word Number", "Word Text", "X0 (px)", "Y0 (px)", "X1 (px)", "Y1 (px)", "Width (px)", "Height (px)", "Font Size (pt)", "Weight", "Family"]
+WORDS_KEYS = ["filename", "page", "word_num", "text", "x0", "y0", "x1", "y1", "width", "height", "font_size_pt", "font_weight", "font_family"]
+
+
+def write_words_json(json_path, base_name, words_list, total_pages):
+    """Writes the word-coordinates JSON file."""
+    payload = {
+        "filename": base_name,
+        "total_words": len(words_list),
+        "total_pages": total_pages,
+        "words": words_list
+    }
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def write_words_csv(csv_path, words_list):
+    """Writes the word-coordinates CSV file."""
+    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        writer.writerow(WORDS_CSV_HEADERS)
+        for w in words_list:
+            writer.writerow([w.get(k) for k in WORDS_KEYS])
+
+
+def write_words_xlsx(xlsx_path, words_list):
+    """Writes the word-coordinates Excel (.xlsx) file."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "OCR Word Coordinates"
+
+    headers = WORDS_XLSX_HEADERS
+    ws.append(headers)
+
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for w in words_list:
+        ws.append([w.get(k) for k in WORDS_KEYS])
+
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    wb.save(xlsx_path)
+
+
 import statistics
+import tempfile
 
 def _export_docx_file(docx_path, base_name, pages_data):
     """Build formatted Microsoft Word (.docx) document with optimized font properties, line normalization, and tight pagination."""
@@ -198,19 +219,24 @@ def _export_docx_file(docx_path, base_name, pages_data):
         if p_idx > 0:
             doc.add_page_break()
 
+        page_w = max(1, p_info.get("width_px", 1600) or 1600)
         illustrations = p_info.get("illustrations", [])
         for ill_idx, crop_bgr in enumerate(illustrations):
             if crop_bgr is not None and crop_bgr.size > 0:
-                temp_path = f"_temp_ill_{p_idx+1}_{ill_idx+1}.png"
+                temp_path = os.path.join(tempfile.gettempdir(), f"_s2pot_ill_{os.getpid()}_{p_idx+1}_{ill_idx+1}.png")
                 cv2.imwrite(temp_path, crop_bgr)
                 temp_img_files.append(temp_path)
                 try:
+                    crop_w = crop_bgr.shape[1]
+                    rel_w = float(crop_w) / float(page_w)
+                    pic_inches = max(1.0, min(4.8, rel_w * 6.0))
+
                     p_img = doc.add_paragraph()
                     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p_img.paragraph_format.space_before = Pt(0)
-                    p_img.paragraph_format.space_after = Pt(1)
+                    p_img.paragraph_format.space_before = Pt(2)
+                    p_img.paragraph_format.space_after = Pt(2)
                     run = p_img.add_run()
-                    run.add_picture(temp_path, width=Inches(4.5))
+                    run.add_picture(temp_path, width=Inches(round(pic_inches, 2)))
                 except Exception as e:
                     print(f"DOCX illustration insert error: {e}")
 

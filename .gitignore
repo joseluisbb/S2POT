@@ -1,29 +1,26 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
+*.py[cod]
+*$py.class
 
-# Build & Dist
+# PyInstaller / Distribution
 build/
 dist/
-*.egg-info/
+*.spec.bak
 
-# Environments
-venv/
-.venv/
-env/
-
-# IDE & Editor files
-.vscode/
-.idea/
-*.swp
-
-# Application Config & Log files
-.ocr_pdf_compressor_config.json
-*.log
-
-# Datasets & Temp Files
+# Large datasets & test inputs
 dataset/
+input/
+output/
 scratch/
+
+# Environments & IDEs
+.venv/
+venv/
+ENV/
+.idea/
+.vscode/
+
+# Local configurations & logs
+config.json
+*.log

@@ -63,12 +63,14 @@ def save_tuning_config(input_dir, global_tuning=None, file_tunings=None, page_tu
         return False
 
 
-def get_effective_file_tuning(tuning_config, filename, page_idx=None):
+def get_effective_file_tuning(tuning_config, filename, page_idx=None, default_dpi=None):
     """
     Given a loaded tuning_config dict, a filename (basename), and optional page_idx (int),
     returns the effective tuning parameters combining global, per-file, and per-page overrides.
     """
     effective = dict(DEFAULT_GLOBAL_TUNING)
+    if default_dpi is not None:
+        effective["target_dpi"] = default_dpi
 
     if not tuning_config or not isinstance(tuning_config, dict):
         return effective

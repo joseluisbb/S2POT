@@ -53,7 +53,7 @@ class ConflictDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             self,
             text=parent._tr("conflict_title"),
-            font=ctk.CTkFont(size=17, weight="bold"),
+            font=ctk.CTkFont(size=16, weight="bold"),
             text_color="#e6a100"
         ).pack(pady=(18, 8))
 
@@ -74,6 +74,8 @@ class ConflictDialog(ctk.CTkToplevel):
             hover_color="#962d22" if allow_overwrite else "#7f8c8d",
             state="normal" if allow_overwrite else "disabled",
             width=135,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._on_overwrite
         )
         self.btn_overwrite.pack(side="left", padx=8)
@@ -84,6 +86,8 @@ class ConflictDialog(ctk.CTkToplevel):
             fg_color="#2980b9",
             hover_color="#1f618d",
             width=145,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._on_archive
         ).pack(side="left", padx=8)
 
@@ -93,6 +97,8 @@ class ConflictDialog(ctk.CTkToplevel):
             fg_color="gray",
             hover_color="#555555",
             width=110,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._on_cancel
         ).pack(side="left", padx=8)
 
@@ -118,46 +124,96 @@ class OutputBrowserWindow(ctk.CTkToplevel):
     """
     Dedicated Output & Results Explorer Window for S2POT.
     Allows browsing both the Documents folder and the Data folder,
-    inspecting generated files and page structures, and opening/revealing them.
+    inspecting generated files, result subfolders, and page structures with full metadata,
+    and opening/revealing them.
     """
     def __init__(self, parent, docs_dir="", data_dir="", lang="pt_PT"):
         super().__init__(parent)
 
+        self.parent_app = parent
         self.docs_dir = docs_dir
         self.data_dir = data_dir or docs_dir
         self.lang = lang
 
         self.title(self._tr("results_browser_title"))
-        self.geometry("1100x720")
-        self.minsize(850, 550)
+        self.geometry("1220x740")
+        self.minsize(900, 580)
 
         self._build_ui()
+        self.update_idletasks()
+        if self.docs_dir and os.path.exists(self.docs_dir):
+            self.after(10, self._initial_load_async)
+
+    def _initial_load_async(self):
+        if self.winfo_exists() and self.docs_dir and os.path.exists(self.docs_dir):
+            self.browser.set_folder(self.docs_dir, set_as_root=True, progressive=True)
 
     def _tr(self, key):
         return get_text(key, self.lang)
 
+    def _get_metadata_context(self):
+        ctx = {}
+        if self.parent_app and hasattr(self.parent_app, "_get_shared_metadata_context"):
+            ctx.update(self.parent_app._get_shared_metadata_context())
+        ctx["docs_dir"] = self.docs_dir
+        ctx["data_dir"] = self.data_dir
+        return ctx
+
     def _build_ui(self):
         # Top Header Bar
-        hdr = ctk.CTkFrame(self, height=45, fg_color="#1e1e1e", corner_radius=0)
+        hdr = ctk.CTkFrame(self, height=48, fg_color=("gray90", "#1a1a1a"), corner_radius=0)
         hdr.pack(side="top", fill="x")
 
-        ctk.CTkLabel(
+        self.lbl_hdr_title = ctk.CTkLabel(
             hdr,
             text=f"📂 {self._tr('results_browser_title')}",
-            font=ctk.CTkFont(size=15, weight="bold"),
+            font=ctk.CTkFont(size=16, weight="bold"),
             text_color="#3498db"
-        ).pack(side="left", padx=15, pady=8)
+        )
+        self.lbl_hdr_title.pack(side="left", padx=16, pady=10)
 
-        # Tab Segmented Button: Documents vs Data
+        # Language & Help Controls
+        h_lang_help = ctk.CTkFrame(hdr, fg_color="transparent")
+        h_lang_help.pack(side="right", padx=(10, 16), pady=8)
+
+        help_init = True
+        if self.parent_app and hasattr(self.parent_app, "var_help_mode"):
+            help_init = self.parent_app.var_help_mode.get()
+        self.var_help_mode = ctk.BooleanVar(value=help_init)
+        self.chk_help = ctk.CTkCheckBox(
+            h_lang_help,
+            text=self._tr("help_mode"),
+            variable=self.var_help_mode,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._on_help_toggle
+        )
+        self.chk_help.pack(side="left", padx=(0, 12))
+
+        self.lbl_lang = ctk.CTkLabel(h_lang_help, text=self._tr("language"), font=ctk.CTkFont(size=12))
+        self.lbl_lang.pack(side="left", padx=(0, 4))
+
+        self.cmb_lang = ctk.CTkOptionMenu(
+            h_lang_help,
+            values=list(LANGUAGES.values()),
+            width=135,
+            font=ctk.CTkFont(size=12),
+            command=self._on_lang_change
+        )
+        curr_lang_name = LANGUAGES.get(self.lang, "Português (PT)")
+        self.cmb_lang.set(curr_lang_name)
+        self.cmb_lang.pack(side="left")
+
+        # Tab Segmented Button: Documents vs Data vs Virtual By Document
         self.seg_folder = ctk.CTkSegmentedButton(
             hdr,
-            values=[self._tr("tab_documents"), self._tr("tab_data")],
+            values=[self._tr("tab_documents"), self._tr("tab_data"), self._tr("tab_by_document")],
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._on_tab_change
         )
         self.seg_folder.set(self._tr("tab_documents"))
-        self.seg_folder.pack(side="right", padx=15, pady=8)
+        self.seg_folder.pack(side="right", padx=(10, 10), pady=10)
 
-        # FilePageTreeBrowser for output
+        # FilePageTreeBrowser for output with unified columns matching "4. Ficheiros" + DateModified
         self.browser = FilePageTreeBrowser(
             self,
             initial_dir=self.docs_dir,
@@ -165,29 +221,45 @@ class OutputBrowserWindow(ctk.CTkToplevel):
             selectmode="extended",
             show_path_bar=True,
             show_filters=False,
-            columns=("Format", "Size", "Pages", "DateModified"),
-            column_widths={"Format": 110, "Size": 95, "Pages": 85, "DateModified": 140},
-            on_page_activated=lambda p, idx: self._open_selected_file()
+            browser_mode="results_docs",
+            columns=("Format", "PagesChars", "Size", "ImgRes", "Status", "DateModified"),
+            column_widths={
+                "Format": 100,
+                "PagesChars": 135,
+                "Size": 175,
+                "ImgRes": 215,
+                "Status": 105,
+                "DateModified": 145
+            },
+            metadata_provider=self._get_metadata_context,
+            on_page_activated=lambda p, idx: self._open_in_s2pit(),
+            on_selection_changed=self._on_browser_selection_change,
+            defer_initial_load=True
         )
-        self.browser.pack(fill="both", expand=True, padx=12, pady=8)
+        self.browser.pack(fill="both", expand=True, padx=14, pady=8)
 
         # Bottom Action Bar
-        bot_bar = ctk.CTkFrame(self, height=45, fg_color="#1e1e1e", corner_radius=0)
+        bot_bar = ctk.CTkFrame(self, height=48, fg_color=("gray90", "#1a1a1a"), corner_radius=0)
         bot_bar.pack(side="bottom", fill="x")
 
         # Action Buttons
         self.btn_open = ctk.CTkButton(
             bot_bar,
             text=f"📄 {self._tr('btn_open_file')}",
-            fg_color="#2980b9",
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="gray50",
             hover_color="#1f618d",
+            state="disabled",
             command=self._open_selected_file
         )
-        self.btn_open.pack(side="left", padx=10, pady=8)
+        self.btn_open.pack(side="left", padx=12, pady=8)
 
         self.btn_reveal = ctk.CTkButton(
             bot_bar,
             text=f"📁 {self._tr('btn_open_in_explorer')}",
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             fg_color="#34495e",
             hover_color="#2c3e50",
             command=self._reveal_in_explorer
@@ -196,30 +268,97 @@ class OutputBrowserWindow(ctk.CTkToplevel):
 
         self.btn_s2pit = ctk.CTkButton(
             bot_bar,
-            text=f"🔍 {self._tr('btn_inspect_s2pit')}",
-            fg_color="#27ae60",
-            hover_color="#1e8449",
+            text=self._tr("btn_inspect_s2pit"),
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="gray50",
+            hover_color="#512e5f",
+            state="disabled",
             command=self._open_in_s2pit
         )
         self.btn_s2pit.pack(side="left", padx=6, pady=8)
 
         self.btn_close = ctk.CTkButton(
             bot_bar,
-            text="Fechar",
-            width=80,
+            text=self._tr("btn_close"),
+            width=95,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             fg_color="#7f8c8d",
             hover_color="#95a5a6",
             command=self.destroy
         )
-        self.btn_close.pack(side="right", padx=10, pady=8)
+        self.btn_close.pack(side="right", padx=12, pady=8)
+
+    def _resolve_viewable_file(self, fpath):
+        if not fpath or not os.path.exists(fpath):
+            return None
+        visual_exts = {".pdf", ".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+        ctx = self._get_metadata_context()
+        in_dir = ctx.get("input_dir", "")
+        if in_dir and os.path.exists(in_dir):
+            src_name, _ = self.browser._resolve_source_metadata(fpath, ctx)
+            if src_name:
+                candidate = os.path.join(in_dir, src_name)
+                if os.path.exists(candidate) and os.path.splitext(candidate)[1].lower() in visual_exts:
+                    return candidate
+            # Fallback: match stripped stem against any visual file in input_dir
+            raw_stem = os.path.splitext(os.path.basename(fpath))[0]
+            base_stem = self.browser._strip_result_suffix(raw_stem).lower()
+            try:
+                for entry in os.scandir(in_dir):
+                    if entry.is_file():
+                        e_stem, e_ext = os.path.splitext(entry.name)
+                        if e_ext.lower() in visual_exts and e_stem.lower() == base_stem:
+                            return entry.path
+            except Exception:
+                pass
+        ext = os.path.splitext(fpath)[1].lower()
+        if ext in visual_exts:
+            return fpath
+        return None
+
+    def _on_browser_selection_change(self, selected_files, selected_pages):
+        has_file = bool(selected_files and os.path.exists(selected_files[0]))
+        if has_file:
+            self.btn_open.configure(state="normal", fg_color="#2980b9", hover_color="#1f618d")
+        else:
+            self.btn_open.configure(state="disabled", fg_color="gray50")
+
+        fpath, _ = self.browser.get_selected_page()
+        viewable = self._resolve_viewable_file(fpath) if fpath else None
+        if viewable:
+            self.btn_s2pit.configure(state="normal", fg_color="#6c3483", hover_color="#512e5f")
+        else:
+            self.btn_s2pit.configure(state="disabled", fg_color="gray50")
 
     def _on_tab_change(self, choice):
         if choice == self._tr("tab_documents"):
+            self.browser.browser_mode = "results_docs"
             if self.docs_dir and os.path.exists(self.docs_dir):
-                self.browser.set_folder(self.docs_dir)
-        else:
+                self.browser.set_folder(self.docs_dir, progressive=True)
+        elif choice == self._tr("tab_data"):
+            self.browser.browser_mode = "results_data"
             if self.data_dir and os.path.exists(self.data_dir):
-                self.browser.set_folder(self.data_dir)
+                self.browser.set_folder(self.data_dir, progressive=True)
+        elif choice == self._tr("tab_by_document"):
+            self.browser.browser_mode = "results_by_doc"
+            target_root = self.docs_dir if (self.docs_dir and os.path.exists(self.docs_dir)) else self.data_dir
+            if target_root and os.path.exists(target_root):
+                self.browser.set_folder(target_root, progressive=True)
+
+    def refresh_results(self):
+        """Refreshes the results browser with the latest directories and metadata from S2POTApp."""
+        if not self.winfo_exists():
+            return
+        if self.parent_app:
+            new_docs = self.parent_app.output_entry.get().strip() or self.parent_app.output_dir
+            new_data = self.parent_app.data_entry.get().strip() or self.parent_app.data_dir or new_docs
+            if new_docs:
+                self.docs_dir = new_docs
+            if new_data:
+                self.data_dir = new_data
+        self.browser.refresh(progressive=True)
 
     def _open_selected_file(self):
         files = self.browser.get_selected_files()
@@ -240,16 +379,56 @@ class OutputBrowserWindow(ctk.CTkToplevel):
 
     def _open_in_s2pit(self):
         fpath, pidx = self.browser.get_selected_page()
-        if fpath and os.path.exists(fpath):
-            S2PITPageTuningWindow(self, file_path=fpath, page_idx=pidx, lang=self.lang)
+        viewable = self._resolve_viewable_file(fpath)
+        if viewable:
+            S2POTPageViewerWindow(
+                self,
+                file_path=viewable,
+                page_idx=pidx,
+                lang=self.lang,
+                on_save_callback=self._on_studio_tuning_saved
+            )
+
+    def _on_studio_tuning_saved(self):
+        if self.parent_app and hasattr(self.parent_app, "_on_tuning_saved"):
+            self.parent_app._on_tuning_saved()
+        self.refresh_results()
+
+    def _on_lang_change(self, choice):
+        for k, v in LANGUAGES.items():
+            if v == choice:
+                self.lang = k
+                break
+        if self.parent_app and hasattr(self.parent_app, "_on_language_change"):
+            self.parent_app._on_language_change(choice)
+        else:
+            self.retranslate(self.lang)
+
+    def _on_help_toggle(self):
+        val = self.var_help_mode.get()
+        if self.parent_app and hasattr(self.parent_app, "var_help_mode"):
+            self.parent_app.var_help_mode.set(val)
+            self.parent_app._on_help_toggle()
 
     def retranslate(self, new_lang):
         self.lang = new_lang
         self.title(self._tr("results_browser_title"))
-        self.seg_folder.configure(values=[self._tr("tab_documents"), self._tr("tab_data")])
+        self.lbl_hdr_title.configure(text=f"📂 {self._tr('results_browser_title')}")
+        self.chk_help.configure(text=self._tr("help_mode"))
+        self.lbl_lang.configure(text=self._tr("language"))
+        curr_lang_name = LANGUAGES.get(self.lang, "Português (PT)")
+        self.cmb_lang.set(curr_lang_name)
+        self.seg_folder.configure(values=[self._tr("tab_documents"), self._tr("tab_data"), self._tr("tab_by_document")])
+        if self.browser.browser_mode == "results_by_doc":
+            self.seg_folder.set(self._tr("tab_by_document"))
+        elif self.browser.browser_mode == "results_data":
+            self.seg_folder.set(self._tr("tab_data"))
+        else:
+            self.seg_folder.set(self._tr("tab_documents"))
         self.btn_open.configure(text=f"📄 {self._tr('btn_open_file')}")
         self.btn_reveal.configure(text=f"📁 {self._tr('btn_open_in_explorer')}")
-        self.btn_s2pit.configure(text=f"🔍 {self._tr('btn_inspect_s2pit')}")
+        self.btn_s2pit.configure(text=self._tr("btn_inspect_s2pit"))
+        self.btn_close.configure(text=self._tr("btn_close"))
         self.browser.set_language(new_lang)
 
 
@@ -314,7 +493,7 @@ class S2POTApp(ctk.CTk):
         self.lbl_title = ctk.CTkLabel(
             header,
             text=f"S2POT — Smart Slim PDF OCR Tool v{APP_VERSION}",
-            font=ctk.CTkFont(size=20, weight="bold")
+            font=ctk.CTkFont(size=18, weight="bold")
         )
         self.lbl_title.grid(row=0, column=0, padx=20, pady=12, sticky="w")
 
@@ -326,18 +505,19 @@ class S2POTApp(ctk.CTk):
             h_right,
             text=self._tr("help_mode"),
             variable=self.var_help_mode,
-            font=ctk.CTkFont(weight="bold"),
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._on_help_toggle
         )
         self.chk_help.pack(side="left", padx=(0, 15))
 
-        self.lbl_lang = ctk.CTkLabel(h_right, text=self._tr("language"))
+        self.lbl_lang = ctk.CTkLabel(h_right, text=self._tr("language"), font=ctk.CTkFont(size=12))
         self.lbl_lang.pack(side="left", padx=(0, 5))
 
         self.cmb_lang = ctk.CTkOptionMenu(
             h_right,
             values=list(LANGUAGES.values()),
             width=140,
+            font=ctk.CTkFont(size=12),
             command=self._on_language_change
         )
         curr_lang_name = LANGUAGES.get(self.current_language, "Português (PT)")
@@ -367,11 +547,11 @@ class S2POTApp(ctk.CTk):
 
         f_in = ctk.CTkFrame(self.box1, fg_color="transparent")
         f_in.pack(fill="x", padx=10, pady=2)
-        self.input_entry = ctk.CTkEntry(f_in, placeholder_text=self._tr("input_placeholder"))
+        self.input_entry = ctk.CTkEntry(f_in, placeholder_text=self._tr("input_placeholder"), font=ctk.CTkFont(size=12))
         self.input_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.input_entry.bind("<Return>", self._on_input_entry_change)
         self.input_entry.bind("<FocusOut>", self._on_input_entry_change)
-        self.btn_in_browse = ctk.CTkButton(f_in, text=self._tr("browse"), width=75, command=self._browse_input)
+        self.btn_in_browse = ctk.CTkButton(f_in, text=self._tr("browse"), width=80, font=ctk.CTkFont(size=12, weight="bold"), command=self._browse_input)
         self.btn_in_browse.pack(side="right")
 
         self.var_sync_paths = ctk.BooleanVar(value=self.config_data.get("sync_paths", True))
@@ -379,11 +559,12 @@ class S2POTApp(ctk.CTk):
             self.box1,
             text=self._tr("sync_paths"),
             variable=self.var_sync_paths,
+            font=ctk.CTkFont(size=12),
             command=self._on_sync_paths_toggle
         )
         self.chk_sync_paths.pack(anchor="w", padx=12, pady=(2, 2))
 
-        self.lbl_badge = ctk.CTkLabel(self.box1, text="Ficheiros encontrados: 0", font=ctk.CTkFont(size=11, weight="bold"), text_color="#3498db")
+        self.lbl_badge = ctk.CTkLabel(self.box1, text="Ficheiros encontrados: 0", font=ctk.CTkFont(size=12, weight="bold"), text_color="#3498db")
         self.lbl_badge.pack(anchor="w", padx=12, pady=(2, 2))
 
         self.btn_tuning_file = ctk.CTkButton(
@@ -392,7 +573,8 @@ class S2POTApp(ctk.CTk):
             fg_color="#27ae60",
             hover_color="#1e8449",
             state="disabled",
-            height=26,
+            height=28,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._open_tuning_file
         )
         self.btn_tuning_file.pack(fill="x", padx=10, pady=(2, 6))
@@ -409,20 +591,20 @@ class S2POTApp(ctk.CTk):
 
         f_cb1 = ctk.CTkFrame(fmt_frame, fg_color="transparent")
         f_cb1.pack(fill="x", padx=6, pady=3)
-        self.chk_filter_pdf = ctk.CTkCheckBox(f_cb1, text="PDF", variable=self.var_filter_pdf, command=self._scan_input_folder)
+        self.chk_filter_pdf = ctk.CTkCheckBox(f_cb1, text="PDF", font=ctk.CTkFont(size=12), variable=self.var_filter_pdf, command=self._scan_input_folder)
         self.chk_filter_pdf.pack(side="left", padx=4)
-        self.chk_filter_tiff = ctk.CTkCheckBox(f_cb1, text="TIFF", variable=self.var_filter_tiff, command=self._scan_input_folder)
+        self.chk_filter_tiff = ctk.CTkCheckBox(f_cb1, text="TIFF", font=ctk.CTkFont(size=12), variable=self.var_filter_tiff, command=self._scan_input_folder)
         self.chk_filter_tiff.pack(side="left", padx=4)
-        self.chk_filter_jpg = ctk.CTkCheckBox(f_cb1, text="JPG", variable=self.var_filter_jpg, command=self._scan_input_folder)
+        self.chk_filter_jpg = ctk.CTkCheckBox(f_cb1, text="JPG", font=ctk.CTkFont(size=12), variable=self.var_filter_jpg, command=self._scan_input_folder)
         self.chk_filter_jpg.pack(side="left", padx=4)
 
         f_cb2 = ctk.CTkFrame(fmt_frame, fg_color="transparent")
         f_cb2.pack(fill="x", padx=6, pady=(0, 3))
-        self.chk_filter_png = ctk.CTkCheckBox(f_cb2, text="PNG", variable=self.var_filter_png, command=self._scan_input_folder)
+        self.chk_filter_png = ctk.CTkCheckBox(f_cb2, text="PNG", font=ctk.CTkFont(size=12), variable=self.var_filter_png, command=self._scan_input_folder)
         self.chk_filter_png.pack(side="left", padx=4)
-        self.chk_filter_bmp = ctk.CTkCheckBox(f_cb2, text="BMP", variable=self.var_filter_bmp, command=self._scan_input_folder)
+        self.chk_filter_bmp = ctk.CTkCheckBox(f_cb2, text="BMP", font=ctk.CTkFont(size=12), variable=self.var_filter_bmp, command=self._scan_input_folder)
         self.chk_filter_bmp.pack(side="left", padx=4)
-        self.chk_filter_webp = ctk.CTkCheckBox(f_cb2, text="WEBP", variable=self.var_filter_webp, command=self._scan_input_folder)
+        self.chk_filter_webp = ctk.CTkCheckBox(f_cb2, text="WEBP", font=ctk.CTkFont(size=12), variable=self.var_filter_webp, command=self._scan_input_folder)
         self.chk_filter_webp.pack(side="left", padx=4)
 
         # ====== BOX 3: PROCESS & OCR ENGINE (BELOW BOX 1) ======
@@ -434,12 +616,14 @@ class S2POTApp(ctk.CTk):
 
         f_dpi = ctk.CTkFrame(self.box3, fg_color="transparent")
         f_dpi.pack(fill="x", padx=10, pady=2)
-        self.lbl_dpi = ctk.CTkLabel(f_dpi, text=self._tr("resolution_dpi"))
+        self.lbl_dpi = ctk.CTkLabel(f_dpi, text=self._tr("resolution_dpi"), font=ctk.CTkFont(size=12))
         self.lbl_dpi.pack(side="left", padx=(0, 5))
         self.cmb_dpi = ctk.CTkOptionMenu(
             f_dpi,
             values=["300 DPI (Standard)", "150 DPI (Fast)", "600 DPI (Ultra)"],
-            width=140
+            width=145,
+            font=ctk.CTkFont(size=12),
+            command=self._on_dpi_change
         )
         self.cmb_dpi.set("300 DPI (Standard)")
         self.cmb_dpi.pack(side="right")
@@ -448,8 +632,19 @@ class S2POTApp(ctk.CTk):
         f_opt.pack(fill="x", padx=10, pady=4)
 
         self.var_deskew = ctk.BooleanVar(value=self.config_data.get("enable_auto_deskew", True))
-        self.chk_deskew = ctk.CTkCheckBox(f_opt, text=self._tr("auto_deskew"), variable=self.var_deskew)
-        self.chk_deskew.pack(anchor="w", padx=8, pady=4)
+        self.chk_deskew = ctk.CTkCheckBox(f_opt, text=self._tr("auto_deskew"), font=ctk.CTkFont(size=12), variable=self.var_deskew)
+        self.chk_deskew.pack(anchor="w", padx=8, pady=(4, 2))
+
+        self.var_handwritten = ctk.BooleanVar(value=(self.config_data.get("doc_type", "printed") == "handwritten"))
+        self.chk_handwritten = ctk.CTkCheckBox(
+            f_opt,
+            text=self._tr("doc_type_handwritten"),
+            font=ctk.CTkFont(size=12, weight="bold"),
+            variable=self.var_handwritten,
+            text_color=("#8e44ad", "#a569bd"),
+            command=self._on_handwritten_toggle
+        )
+        self.chk_handwritten.pack(anchor="w", padx=8, pady=(2, 6))
 
         f_btns = ctk.CTkFrame(self.box3, fg_color="transparent")
         f_btns.pack(fill="x", padx=10, pady=(2, 6))
@@ -459,7 +654,8 @@ class S2POTApp(ctk.CTk):
             text=self._tr("btn_process"),
             fg_color="#27ae60",
             hover_color="#1e8449",
-            font=ctk.CTkFont(weight="bold"),
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._start_batch_process
         )
         self.btn_start.pack(side="left", fill="x", expand=True, padx=(0, 4))
@@ -471,6 +667,8 @@ class S2POTApp(ctk.CTk):
             hover_color="#962d22",
             state="disabled",
             width=85,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._abort_batch_process
         )
         self.btn_stop.pack(side="right")
@@ -491,24 +689,24 @@ class S2POTApp(ctk.CTk):
         self.lbl_box2.pack(anchor="w", padx=12, pady=(8, 4))
 
         # Subsection 1: Documents
-        self.lbl_sub_docs = ctk.CTkLabel(self.box2, text=f"• {self._tr('sub_documents')}", font=ctk.CTkFont(size=12, weight="bold"), text_color="#27ae60")
+        self.lbl_sub_docs = ctk.CTkLabel(self.box2, text=f"• {self._tr('sub_documents')}", font=ctk.CTkFont(size=12, weight="bold"), text_color=("#145a32", "#27ae60"))
         self.lbl_sub_docs.pack(anchor="w", padx=12, pady=(2, 2))
 
-        self.lbl_docs_path = ctk.CTkLabel(self.box2, text=self._tr("docs_folder_label"), font=ctk.CTkFont(size=11))
+        self.lbl_docs_path = ctk.CTkLabel(self.box2, text=self._tr("docs_folder_label"), font=ctk.CTkFont(size=12))
         self.lbl_docs_path.pack(anchor="w", padx=12, pady=(0, 1))
 
         f_out = ctk.CTkFrame(self.box2, fg_color="transparent")
         f_out.pack(fill="x", padx=10, pady=2)
-        self.output_entry = ctk.CTkEntry(f_out, placeholder_text=self._tr("output_placeholder"))
+        self.output_entry = ctk.CTkEntry(f_out, placeholder_text=self._tr("output_placeholder"), font=ctk.CTkFont(size=12))
         self.output_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.output_entry.bind("<Return>", self._on_output_entry_change)
         self.output_entry.bind("<FocusOut>", self._on_output_entry_change)
-        self.btn_out_browse = ctk.CTkButton(f_out, text=self._tr("browse"), width=75, command=self._browse_output)
+        self.btn_out_browse = ctk.CTkButton(f_out, text=self._tr("browse"), width=80, font=ctk.CTkFont(size=12, weight="bold"), command=self._browse_output)
         self.btn_out_browse.pack(side="right")
 
         # Organize Documents Checkbox placed directly below documents folder path
         self.var_doc_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_doc_subfolders", False))
-        self.chk_doc_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_doc_subfolders"), variable=self.var_doc_subfolders, command=self._on_option_toggle)
+        self.chk_doc_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_doc_subfolders"), font=ctk.CTkFont(size=12), variable=self.var_doc_subfolders, command=self._on_option_toggle)
         self.chk_doc_subfolders.pack(anchor="w", padx=12, pady=(2, 4))
 
         doc_frame = ctk.CTkFrame(self.box2, fg_color=("gray95", "#242424"), corner_radius=6)
@@ -517,10 +715,10 @@ class S2POTApp(ctk.CTk):
         self.var_pdf = ctk.BooleanVar(value=self.config_data.get("export_pdf", True))
         self.var_docx = ctk.BooleanVar(value=self.config_data.get("export_docx", True))
 
-        self.chk_pdf = ctk.CTkCheckBox(doc_frame, text=self._tr("export_pdf"), variable=self.var_pdf, command=self._on_option_toggle)
+        self.chk_pdf = ctk.CTkCheckBox(doc_frame, text=self._tr("export_pdf"), font=ctk.CTkFont(size=12), variable=self.var_pdf, command=self._on_option_toggle)
         self.chk_pdf.pack(anchor="w", padx=8, pady=3)
 
-        self.chk_docx = ctk.CTkCheckBox(doc_frame, text=self._tr("export_docx"), variable=self.var_docx, command=self._on_option_toggle)
+        self.chk_docx = ctk.CTkCheckBox(doc_frame, text=self._tr("export_docx"), font=ctk.CTkFont(size=12), variable=self.var_docx, command=self._on_option_toggle)
         self.chk_docx.pack(anchor="w", padx=8, pady=3)
 
         # Subsection 2: Data
@@ -528,21 +726,21 @@ class S2POTApp(ctk.CTk):
         self.lbl_sub_data.pack(anchor="w", padx=12, pady=(4, 2))
 
         # Destination Folder for Data Files placed IMMEDIATELY after title, BEFORE checkboxes
-        self.lbl_data_path = ctk.CTkLabel(self.box2, text=self._tr("data_folder_label"), font=ctk.CTkFont(size=11))
+        self.lbl_data_path = ctk.CTkLabel(self.box2, text=self._tr("data_folder_label"), font=ctk.CTkFont(size=12))
         self.lbl_data_path.pack(anchor="w", padx=12, pady=(2, 1))
 
         f_data = ctk.CTkFrame(self.box2, fg_color="transparent")
         f_data.pack(fill="x", padx=10, pady=(0, 2))
-        self.data_entry = ctk.CTkEntry(f_data, placeholder_text=self._tr("data_placeholder"))
+        self.data_entry = ctk.CTkEntry(f_data, placeholder_text=self._tr("data_placeholder"), font=ctk.CTkFont(size=12))
         self.data_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.data_entry.bind("<Return>", self._on_data_entry_change)
         self.data_entry.bind("<FocusOut>", self._on_data_entry_change)
-        self.btn_data_browse = ctk.CTkButton(f_data, text=self._tr("browse"), width=75, command=self._browse_data)
+        self.btn_data_browse = ctk.CTkButton(f_data, text=self._tr("browse"), width=80, font=ctk.CTkFont(size=12, weight="bold"), command=self._browse_data)
         self.btn_data_browse.pack(side="right")
 
         # Organize Data Checkbox placed directly below data folder path
         self.var_subfolders = ctk.BooleanVar(value=self.config_data.get("organize_subfolders", False))
-        self.chk_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_subfolders"), variable=self.var_subfolders, command=self._on_option_toggle)
+        self.chk_subfolders = ctk.CTkCheckBox(self.box2, text=self._tr("organize_subfolders"), font=ctk.CTkFont(size=12), variable=self.var_subfolders, command=self._on_option_toggle)
         self.chk_subfolders.pack(anchor="w", padx=12, pady=(2, 4))
 
         data_fmt_frame = ctk.CTkFrame(self.box2, fg_color=("gray95", "#242424"), corner_radius=6)
@@ -559,35 +757,36 @@ class S2POTApp(ctk.CTk):
 
         f_data_cb1 = ctk.CTkFrame(data_fmt_frame, fg_color="transparent")
         f_data_cb1.pack(fill="x", padx=4, pady=2)
-        self.chk_txt = ctk.CTkCheckBox(f_data_cb1, text="TXT", variable=self.var_txt, command=self._on_option_toggle)
+        self.chk_txt = ctk.CTkCheckBox(f_data_cb1, text="TXT", font=ctk.CTkFont(size=12), variable=self.var_txt, command=self._on_option_toggle)
         self.chk_txt.pack(side="left", padx=4)
-        self.chk_hocr = ctk.CTkCheckBox(f_data_cb1, text="hOCR", variable=self.var_hocr, command=self._on_option_toggle)
+        self.chk_hocr = ctk.CTkCheckBox(f_data_cb1, text="hOCR", font=ctk.CTkFont(size=12), variable=self.var_hocr, command=self._on_option_toggle)
         self.chk_hocr.pack(side="left", padx=4)
-        self.chk_json = ctk.CTkCheckBox(f_data_cb1, text="JSON", variable=self.var_json, command=self._on_option_toggle)
+        self.chk_json = ctk.CTkCheckBox(f_data_cb1, text="JSON", font=ctk.CTkFont(size=12), variable=self.var_json, command=self._on_option_toggle)
         self.chk_json.pack(side="left", padx=4)
 
         f_data_cb2 = ctk.CTkFrame(data_fmt_frame, fg_color="transparent")
         f_data_cb2.pack(fill="x", padx=4, pady=(0, 2))
-        self.chk_csv = ctk.CTkCheckBox(f_data_cb2, text="CSV", variable=self.var_csv, command=self._on_option_toggle)
+        self.chk_csv = ctk.CTkCheckBox(f_data_cb2, text="CSV", font=ctk.CTkFont(size=12), variable=self.var_csv, command=self._on_option_toggle)
         self.chk_csv.pack(side="left", padx=4)
-        self.chk_xlsx = ctk.CTkCheckBox(f_data_cb2, text="Excel", variable=self.var_xlsx, command=self._on_option_toggle)
+        self.chk_xlsx = ctk.CTkCheckBox(f_data_cb2, text="Excel", font=ctk.CTkFont(size=12), variable=self.var_xlsx, command=self._on_option_toggle)
         self.chk_xlsx.pack(side="left", padx=4)
-        self.chk_audit = ctk.CTkCheckBox(f_data_cb2, text=self._tr("export_audit_report"), variable=self.var_audit, command=self._on_option_toggle)
+        self.chk_audit = ctk.CTkCheckBox(f_data_cb2, text=self._tr("export_audit_report"), font=ctk.CTkFont(size=12), variable=self.var_audit, command=self._on_option_toggle)
         self.chk_audit.pack(side="left", padx=4)
 
         f_data_cb3 = ctk.CTkFrame(data_fmt_frame, fg_color="transparent")
         f_data_cb3.pack(fill="x", padx=4, pady=(0, 2))
-        self.chk_txt_from_pdf = ctk.CTkCheckBox(f_data_cb3, text=self._tr("export_txt_from_pdf"), variable=self.var_txt_from_pdf, command=self._on_option_toggle)
+        self.chk_txt_from_pdf = ctk.CTkCheckBox(f_data_cb3, text=self._tr("export_txt_from_pdf"), font=ctk.CTkFont(size=12), variable=self.var_txt_from_pdf, command=self._on_option_toggle)
         self.chk_txt_from_pdf.pack(side="left", padx=4)
-        self.chk_docx_from_pdf = ctk.CTkCheckBox(f_data_cb3, text=self._tr("export_docx_from_pdf"), variable=self.var_docx_from_pdf, command=self._on_option_toggle)
+        self.chk_docx_from_pdf = ctk.CTkCheckBox(f_data_cb3, text=self._tr("export_docx_from_pdf"), font=ctk.CTkFont(size=12), variable=self.var_docx_from_pdf, command=self._on_option_toggle)
         self.chk_docx_from_pdf.pack(side="left", padx=4)
 
         self.btn_explore_results = ctk.CTkButton(
             self.box2,
             text=self._tr("btn_explore_results"),
-            fg_color="#2980b9",
-            hover_color="#1f618d",
-            font=ctk.CTkFont(weight="bold"),
+            fg_color="#6c3483",
+            hover_color="#512e5f",
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._open_results_browser
         )
         self.btn_explore_results.pack(fill="x", padx=10, pady=(2, 8))
@@ -608,9 +807,9 @@ class S2POTApp(ctk.CTk):
             text=self._tr("btn_inspect"),
             width=170,
             height=28,
-            fg_color="#2980b9",
-            hover_color="#1f618d",
-            font=ctk.CTkFont(weight="bold"),
+            fg_color="#6c3483",
+            hover_color="#512e5f",
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._inspect_files
         )
         self.btn_inspect.pack(side="left", padx=(15, 6))
@@ -620,14 +819,15 @@ class S2POTApp(ctk.CTk):
             text=self._tr("btn_tune_page"),
             width=150,
             height=28,
-            fg_color="#27ae60",
-            hover_color="#1e8449",
-            font=ctk.CTkFont(weight="bold"),
+            fg_color="gray50",
+            hover_color="#512e5f",
+            state="disabled",
+            font=ctk.CTkFont(size=12, weight="bold"),
             command=self._open_tuning_studio
         )
         self.btn_tune_page.pack(side="left", padx=6)
 
-        self.lbl_selected_badge = ctk.CTkLabel(f_tbl_hdr, text="Selecionados: 0 de 0", font=ctk.CTkFont(size=11, weight="bold"), text_color="#e67e22")
+        self.lbl_selected_badge = ctk.CTkLabel(f_tbl_hdr, text="Selecionados: 0 de 0", font=ctk.CTkFont(size=12, weight="bold"), text_color="#e67e22")
         self.lbl_selected_badge.pack(side="right", padx=10)
 
         style = ttk.Style()
@@ -668,18 +868,22 @@ class S2POTApp(ctk.CTk):
         self.tree.heading("ImgRes", text=self._tr("col_img_res"), command=lambda: self._sort_table("ImgRes"))
         self.tree.heading("Status", text=self._tr("col_status"), command=lambda: self._sort_table("Status"))
 
-        self.tree.column("#0", width=300, minwidth=180, anchor="w")
-        self.tree.column("Format", width=120, anchor="center")
-        self.tree.column("PagesChars", width=140, anchor="center")
-        self.tree.column("Size", width=190, anchor="center")
-        self.tree.column("ImgRes", width=230, anchor="center")
-        self.tree.column("Status", width=110, anchor="center")
+        self.tree.column("#0", width=290, minwidth=180, anchor="w")
+        self.tree.column("Format", width=110, anchor="center")
+        self.tree.column("PagesChars", width=175, anchor="center")
+        self.tree.column("Size", width=185, anchor="center")
+        self.tree.column("ImgRes", width=220, anchor="center")
+        self.tree.column("Status", width=135, anchor="center")
 
         self.tree.tag_configure("even", background="#ffffff")
         self.tree.tag_configure("odd", background="#f8f9fa")
         self.tree.tag_configure("page_even", background="#f0f4f8")
         self.tree.tag_configure("page_odd", background="#e7eff7")
         self.tree.tag_configure("page_row", background="#f0f4f8")
+        self.tree.tag_configure("file_warn_conf", background="#fff8db", foreground="#9c6500")
+        self.tree.tag_configure("file_low_conf", background="#fde8e8", foreground="#b91c1c")
+        self.tree.tag_configure("page_warn_conf", background="#fff3cd", foreground="#856404")
+        self.tree.tag_configure("page_low_conf", background="#fadbd8", foreground="#922b21")
 
         self._setup_tree_gridlines()
 
@@ -786,6 +990,48 @@ class S2POTApp(ctk.CTk):
         save_config(self.config_data)
         self._retranslate_ui()
 
+    def _get_selected_ui_dpi(self):
+        dpi_str = self.cmb_dpi.get() if hasattr(self, "cmb_dpi") else "300"
+        if "150" in dpi_str:
+            return 150
+        elif "600" in dpi_str:
+            return 600
+        return 300
+
+    def _get_shared_metadata_context(self):
+        """Returns the live metadata and tuning state shared with OutputBrowserWindow."""
+        in_dir = (self.input_entry.get().strip() or self.input_dir or "").strip('"\'')
+        live_file_infos = {}
+        for info in self.item_to_info.values():
+            if info.get("type") == "file" and info.get("filepath"):
+                live_file_infos[info["filepath"]] = info
+        input_files_norm = {os.path.normcase(os.path.abspath(f)) for f in self.found_files if f}
+        return {
+            "input_dir": in_dir,
+            "folder_metadata": self.folder_metadata,
+            "folder_tuning": self.folder_tuning,
+            "live_file_infos": live_file_infos,
+            "input_files_norm": input_files_norm,
+            "ui_dpi": self._get_selected_ui_dpi()
+        }
+
+    def _on_dpi_change(self, choice=None):
+        ui_dpi = self._get_selected_ui_dpi()
+        for item_id, item_info in self.item_to_info.items():
+            fname = item_info.get("filename")
+            pidx = item_info.get("page_idx") if item_info.get("type") == "page" else None
+            eff = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx, default_dpi=ui_dpi)
+            item_info["target_dpi"] = eff.get("target_dpi")
+            item_info["target_cmode"] = eff.get("color_mode")
+        self._refresh_all_row_displays()
+        if self.results_window is not None and self.results_window.winfo_exists():
+            self.results_window.refresh_results()
+
+    def _on_handwritten_toggle(self):
+        doc_type = "handwritten" if self.var_handwritten.get() else "printed"
+        self.config_data["doc_type"] = doc_type
+        save_config(self.config_data)
+
     def _format_color_mode(self, cmode):
         if not cmode:
             return ""
@@ -796,21 +1042,78 @@ class S2POTApp(ctk.CTk):
             return self._tr("color_short_bw")
         return self._tr("color_short_color")
 
+    def _get_file_conf_badge_and_tag(self, info, f_idx=0):
+        default_tag = "even" if f_idx % 2 == 0 else "odd"
+        fconf = info.get("confidence")
+        min_pconf = info.get("min_page_confidence")
+        low_pages = info.get("low_conf_pages", 0) or 0
+        total_chars = info.get("total_chars")
+        status_val = info.get("status", "")
+
+        if fconf is None:
+            return None, default_tag
+
+        is_critical = (
+            fconf < 65.0
+            or (min_pconf is not None and min_pconf < 65.0)
+            or (status_val == "done" and total_chars is not None and total_chars == 0)
+        )
+        is_warn = (
+            not is_critical
+            and (fconf < 80.0 or (min_pconf is not None and min_pconf < 80.0) or low_pages > 0)
+        )
+
+        if is_critical:
+            return f"🔴 {fconf:.0f}%", "file_low_conf"
+        elif is_warn:
+            return f"⚠️ {fconf:.0f}%", "file_warn_conf"
+        else:
+            return f"🟢 {fconf:.0f}%", default_tag
+
+    def _get_page_conf_badge_tag_and_label(self, pinfo, p_idx=0):
+        pidx = pinfo.get("page_idx", p_idx)
+        default_tag = "page_even" if p_idx % 2 == 0 else "page_odd"
+        base_page_txt = self._tr("tree_item_page").format(idx=pidx + 1)
+
+        pconf = pinfo.get("confidence")
+        pchars = pinfo.get("chars")
+        status_val = pinfo.get("status", "")
+
+        if pconf is None:
+            return None, default_tag, f"   ├── 📄 {base_page_txt}"
+
+        if pconf < 65.0 or (status_val == "done" and pchars is not None and pchars == 0):
+            return f"🔴 {pconf:.0f}%", "page_low_conf", f"   ├── 🔴 {base_page_txt}"
+        elif pconf < 80.0:
+            return f"⚠️ {pconf:.0f}%", "page_warn_conf", f"   ├── ⚠️ {base_page_txt}"
+        else:
+            return f"🟢 {pconf:.0f}%", default_tag, f"   ├── 📄 {base_page_txt}"
+
     def _format_file_row_values(self, info):
         # Format
         fmt_str = info.get("format", "-")
 
-        # Pages / Chars
+        # Pages / Chars (+ OCR Confidence badge)
         n_pages = info.get("n_pages", 1)
         total_chars = info.get("total_chars")
-        chars_str = f"{total_chars:,}" if (total_chars is not None and total_chars > 0) else "-"
-        pages_chars_str = f"{n_pages} / {chars_str}"
+        status_val = info.get("status", "")
+        conf_badge, _ = self._get_file_conf_badge_and_tag(info)
+
+        if total_chars is not None and (total_chars > 0 or status_val == "done"):
+            chars_str = f"{total_chars:,}"
+        else:
+            chars_str = "-"
+
+        if conf_badge:
+            pages_chars_str = f"{n_pages} / {chars_str} ({conf_badge})"
+        else:
+            pages_chars_str = f"{n_pages} / {chars_str}"
 
         # Size (Before / After)
         orig_mb = info.get("size_mb", 0.0)
         comp_mb = info.get("comp_size_mb")
-        orig_sz_str = f"{orig_mb:.2f} MB" if orig_mb > 0 else "-"
-        comp_sz_str = f"{comp_mb:.2f} MB" if (comp_mb is not None and comp_mb > 0) else "-"
+        orig_sz_str = f"{max(0.01, orig_mb):.2f} MB" if orig_mb > 0 else "-"
+        comp_sz_str = f"{max(0.01, comp_mb):.2f} MB" if (comp_mb is not None and comp_mb > 0) else "-"
         size_str = f"{orig_sz_str} / {comp_sz_str}"
 
         # Img. Res. (Orig. / Target)
@@ -831,7 +1134,6 @@ class S2POTApp(ctk.CTk):
         img_res_str = f"{orig_str} / {target_str}"
 
         # Status
-        status_val = info.get("status", "")
         if status_val == "processing":
             curr_p = info.get("curr_page", 1)
             tot_p = info.get("tot_pages", n_pages)
@@ -853,12 +1155,20 @@ class S2POTApp(ctk.CTk):
         w, h = pinfo.get("width"), pinfo.get("height")
         dims_str = f"{w} × {h} px" if (w and h) else "-"
 
-        # Pages / Chars
+        # Pages / Chars (+ OCR Confidence badge) — without repeating "Pág X /"
         pidx = pinfo.get("page_idx", 0)
         pchars = pinfo.get("chars")
-        pchars_str = f"{pchars:,}" if (pchars is not None and pchars > 0) else "-"
-        p_prefix = self._tr("page_prefix").format(idx=pidx + 1)
-        pages_chars_str = f"{p_prefix} / {pchars_str}"
+        status_val = pinfo.get("status", "")
+        conf_badge, _, _ = self._get_page_conf_badge_tag_and_label(pinfo, pidx)
+
+        if pchars is not None and (pchars > 0 or status_val == "done"):
+            pchars_str = f"{pchars:,}"
+        else:
+            pchars_str = "-"
+        if conf_badge:
+            pages_chars_str = f"{pchars_str} ({conf_badge})"
+        else:
+            pages_chars_str = f"{pchars_str}"
 
         # Size
         size_str = "- / -"
@@ -881,9 +1191,10 @@ class S2POTApp(ctk.CTk):
         img_res_str = f"{orig_str} / {target_str}"
 
         # Status
-        status_val = pinfo.get("status", "")
         if status_val == "done" and pinfo.get("elapsed"):
             status_str = f"{pinfo['elapsed']:.1f}s"
+        elif status_val == "done":
+            status_str = self._tr("status_ready")
         elif status_val == "processing":
             status_str = self._tr("status_processing")
         else:
@@ -898,21 +1209,21 @@ class S2POTApp(ctk.CTk):
         self.lbl_selected_badge.configure(text=self._tr("selected_badge").format(sel=sel_count, tot=tot_count))
         self.lbl_badge.configure(text=self._tr("found_files_badge").format(count=tot_count))
 
-        for parent_id in self.tree.get_children(""):
+        for f_idx, parent_id in enumerate(self.tree.get_children("")):
             info = self.item_to_info.get(parent_id)
             if not info or info.get("type") != "file":
                 continue
             row_vals = self._format_file_row_values(info)
-            self.tree.item(parent_id, values=row_vals)
+            _, file_tag = self._get_file_conf_badge_and_tag(info, f_idx)
+            self.tree.item(parent_id, values=row_vals, tags=(file_tag,))
 
-            for child_id in self.tree.get_children(parent_id):
+            for p_idx, child_id in enumerate(self.tree.get_children(parent_id)):
                 cinfo = self.item_to_info.get(child_id)
                 if not cinfo or cinfo.get("type") != "page":
                     continue
-                pidx = cinfo.get("page_idx", 0)
-                page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
+                _, ptag, page_label = self._get_page_conf_badge_tag_and_label(cinfo, p_idx)
                 child_vals = self._format_page_row_values(cinfo)
-                self.tree.item(child_id, text=page_label, values=child_vals)
+                self.tree.item(child_id, text=page_label, values=child_vals, tags=(ptag,))
 
     def _retranslate_ui(self):
         """Dynamically updates all widget text labels when language is changed."""
@@ -955,6 +1266,7 @@ class S2POTApp(ctk.CTk):
         self.lbl_box3.configure(text=self._tr("box_3_process"))
         self.lbl_dpi.configure(text=self._tr("resolution_dpi"))
         self.chk_deskew.configure(text=self._tr("auto_deskew"))
+        self.chk_handwritten.configure(text=self._tr("doc_type_handwritten"))
         self.btn_start.configure(text=self._tr("btn_process"))
         self.btn_stop.configure(text=self._tr("btn_abort"))
 
@@ -1179,14 +1491,22 @@ class S2POTApp(ctk.CTk):
             files.extend(glob.glob(os.path.join(in_path, pattern)))
             files.extend(glob.glob(os.path.join(in_path, pattern.upper())))
 
-        self.found_files = sorted(list(set(files)))
+        # Filter out generated output PDFs (*_compressed.pdf, *_original.pdf) if they are inside the input folder
+        filtered_files = []
+        for f in sorted(list(set(files))):
+            bname_lower = os.path.basename(f).lower()
+            if bname_lower.endswith("_compressed.pdf") or bname_lower.endswith("_original.pdf"):
+                continue
+            filtered_files.append(f)
+
+        self.found_files = filtered_files
 
         # Check for s2pot_tuning.json badge and update button state
         tuning_file = os.path.join(in_path, "s2pot_tuning.json")
         badge_text = self._tr("found_files_badge").format(count=len(self.found_files))
         if os.path.exists(tuning_file):
             badge_text += f"  |  {self._tr('s2pit_badge_active')}"
-            self.lbl_badge.configure(text=badge_text, text_color="#2ecc71")
+            self.lbl_badge.configure(text=badge_text, text_color=("#145a32", "#27ae60"))
             self.btn_tuning_file.configure(state="normal", fg_color="#27ae60", hover_color="#1e8449")
         else:
             self.lbl_badge.configure(text=badge_text, text_color="#3498db")
@@ -1218,11 +1538,23 @@ class S2POTApp(ctk.CTk):
                 orig_dpi = f_meta.get("max_dpi", 300)
                 orig_cmode = f_meta.get("color_mode")
                 tc = f_meta.get("total_chars")
+                comp_size_mb = f_meta.get("comp_size_mb")
+                f_status = f_meta.get("status", "")
+                f_elapsed = f_meta.get("elapsed", 0.0)
+                f_conf = f_meta.get("confidence")
+                f_min_conf = f_meta.get("min_page_confidence")
+                f_low_pages = f_meta.get("low_conf_pages", 0)
             else:
                 n_pages = 1
                 orig_dpi = None
                 orig_cmode = None
                 tc = None
+                comp_size_mb = None
+                f_status = ""
+                f_elapsed = 0.0
+                f_conf = None
+                f_min_conf = None
+                f_low_pages = 0
                 try:
                     if low_ext == ".pdf":
                         with fitz.open(f) as doc:
@@ -1233,9 +1565,10 @@ class S2POTApp(ctk.CTk):
                 except Exception:
                     pass
 
-            eff_tune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=None)
-            target_dpi = eff_tune.get("target_dpi")
-            target_cmode = eff_tune.get("color_mode")
+            ui_dpi = self._get_selected_ui_dpi()
+            eff_tune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=None, default_dpi=ui_dpi)
+            target_dpi = (f_meta.get("target_dpi") if inspected else None) or eff_tune.get("target_dpi")
+            target_cmode = (f_meta.get("target_cmode") if inspected else None) or eff_tune.get("color_mode")
 
             finfo = {
                 "type": "file",
@@ -1244,18 +1577,21 @@ class S2POTApp(ctk.CTk):
                 "format": ext,
                 "n_pages": n_pages,
                 "total_chars": tc,
+                "confidence": f_conf,
+                "min_page_confidence": f_min_conf,
+                "low_conf_pages": f_low_pages,
                 "size_mb": size_mb,
-                "comp_size_mb": None,
+                "comp_size_mb": comp_size_mb,
                 "orig_dpi": orig_dpi,
                 "orig_cmode": orig_cmode,
                 "target_dpi": target_dpi,
                 "target_cmode": target_cmode,
-                "status": "",
-                "elapsed": 0.0
+                "status": f_status,
+                "elapsed": f_elapsed
             }
 
             row_vals = self._format_file_row_values(finfo)
-            file_tag = "even" if f_idx % 2 == 0 else "odd"
+            _, file_tag = self._get_file_conf_badge_and_tag(finfo, f_idx)
             item_id = self.tree.insert("", "end", text=f"📄 {fname}", values=row_vals, open=False, tags=(file_tag,))
             self.file_items[f] = item_id
             self.item_to_filepath[item_id] = f
@@ -1265,7 +1601,7 @@ class S2POTApp(ctk.CTk):
             if f_meta and "pages" in f_meta and len(f_meta["pages"]) > 0:
                 for p_idx, pinfo in enumerate(f_meta["pages"]):
                     pidx = pinfo.get("page_idx", p_idx)
-                    ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
+                    ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx, default_dpi=ui_dpi)
                     cinfo = {
                         "type": "page",
                         "filepath": f,
@@ -1274,16 +1610,16 @@ class S2POTApp(ctk.CTk):
                         "width": pinfo.get("width"),
                         "height": pinfo.get("height"),
                         "chars": pinfo.get("chars"),
-                        "orig_dpi": pinfo.get("dpi"),
-                        "orig_cmode": pinfo.get("color_mode"),
-                        "target_dpi": ptune.get("target_dpi"),
-                        "target_cmode": ptune.get("color_mode"),
-                        "status": "",
-                        "elapsed": 0.0
+                        "confidence": pinfo.get("confidence"),
+                        "orig_dpi": pinfo.get("dpi") or pinfo.get("orig_dpi"),
+                        "orig_cmode": pinfo.get("color_mode") or pinfo.get("orig_cmode"),
+                        "target_dpi": pinfo.get("target_dpi") or ptune.get("target_dpi"),
+                        "target_cmode": pinfo.get("target_cmode") or ptune.get("color_mode"),
+                        "status": pinfo.get("status", ""),
+                        "elapsed": pinfo.get("elapsed", 0.0)
                     }
-                    page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
+                    _, ptag, page_label = self._get_page_conf_badge_tag_and_label(cinfo, p_idx)
                     child_vals = self._format_page_row_values(cinfo)
-                    ptag = "page_even" if p_idx % 2 == 0 else "page_odd"
                     child_id = self.tree.insert(item_id, "end", text=page_label, values=child_vals, tags=(ptag,))
                     self.item_to_filepath[child_id] = f
                     self.item_to_info[child_id] = cinfo
@@ -1297,9 +1633,12 @@ class S2POTApp(ctk.CTk):
 
         self._on_table_select(None)
         self._check_conditional_controls()
+        if self.results_window is not None and self.results_window.winfo_exists():
+            self.results_window.refresh_results()
 
     def _on_tree_open(self, event):
         """Lazy load page details when user clicks expand (+) on a file node."""
+        ui_dpi = self._get_selected_ui_dpi()
         for parent_id in self.tree.get_children(""):
             if self.tree.item(parent_id, "open"):
                 fpath = self.item_to_filepath.get(parent_id)
@@ -1316,7 +1655,7 @@ class S2POTApp(ctk.CTk):
                 if f_meta and "pages" in f_meta and len(f_meta["pages"]) > 0:
                     for pinfo in f_meta["pages"]:
                         pidx = pinfo.get("page_idx", 0)
-                        ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
+                        ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx, default_dpi=ui_dpi)
                         cinfo = {
                             "type": "page",
                             "filepath": fpath,
@@ -1325,16 +1664,16 @@ class S2POTApp(ctk.CTk):
                             "width": pinfo.get("width"),
                             "height": pinfo.get("height"),
                             "chars": pinfo.get("chars"),
-                            "orig_dpi": pinfo.get("dpi"),
-                            "orig_cmode": pinfo.get("color_mode"),
-                            "target_dpi": ptune.get("target_dpi"),
-                            "target_cmode": ptune.get("color_mode"),
-                            "status": "",
-                            "elapsed": 0.0
+                            "confidence": pinfo.get("confidence"),
+                            "orig_dpi": pinfo.get("dpi") or pinfo.get("orig_dpi"),
+                            "orig_cmode": pinfo.get("color_mode") or pinfo.get("orig_cmode"),
+                            "target_dpi": pinfo.get("target_dpi") or ptune.get("target_dpi"),
+                            "target_cmode": pinfo.get("target_cmode") or ptune.get("color_mode"),
+                            "status": pinfo.get("status", ""),
+                            "elapsed": pinfo.get("elapsed", 0.0)
                         }
-                        page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
+                        _, ptag, page_label = self._get_page_conf_badge_tag_and_label(cinfo, pidx)
                         child_vals = self._format_page_row_values(cinfo)
-                        ptag = "page_even" if pidx % 2 == 0 else "page_odd"
                         child_id = self.tree.insert(parent_id, "end", text=page_label, values=child_vals, tags=(ptag,))
                         self.item_to_filepath[child_id] = fpath
                         self.item_to_info[child_id] = cinfo
@@ -1343,7 +1682,7 @@ class S2POTApp(ctk.CTk):
                     parent_info = self.item_to_info.get(parent_id, {})
                     n_pages = parent_info.get("n_pages", 1)
                     for pidx in range(n_pages):
-                        ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
+                        ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx, default_dpi=ui_dpi)
                         cinfo = {
                             "type": "page",
                             "filepath": fpath,
@@ -1419,11 +1758,12 @@ class S2POTApp(ctk.CTk):
     def _on_tuning_saved(self):
         in_path = self.input_entry.get().strip() or self.input_dir
         if in_path and os.path.exists(in_path):
+            ui_dpi = self._get_selected_ui_dpi()
             self.folder_tuning = load_tuning_config(in_path)
             for item_id, item_info in self.item_to_info.items():
                 fname = item_info.get("filename")
                 pidx = item_info.get("page_idx") if item_info.get("type") == "page" else None
-                eff = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
+                eff = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx, default_dpi=ui_dpi)
                 item_info["target_dpi"] = eff.get("target_dpi")
                 item_info["target_cmode"] = eff.get("color_mode")
             self._refresh_all_row_displays()
@@ -1433,8 +1773,11 @@ class S2POTApp(ctk.CTk):
             badge_text = self._tr("found_files_badge").format(count=len(self.found_files))
             if os.path.exists(tuning_file):
                 badge_text += f"  |  {self._tr('s2pit_badge_active')}"
-                self.lbl_badge.configure(text=badge_text, text_color="#2ecc71")
+                self.lbl_badge.configure(text=badge_text, text_color=("#145a32", "#27ae60"))
                 self.btn_tuning_file.configure(state="normal", fg_color="#27ae60", hover_color="#1e8449")
+
+        if self.results_window is not None and self.results_window.winfo_exists():
+            self.results_window.refresh_results()
 
     def _open_results_browser(self):
         docs_path = self.output_entry.get().strip()
@@ -1556,6 +1899,7 @@ class S2POTApp(ctk.CTk):
         if not self.folder_metadata:
             return
 
+        ui_dpi = self._get_selected_ui_dpi()
         meta_files = self.folder_metadata.get("files", {})
         for fpath, item_id in self.file_items.items():
             fname = os.path.basename(fpath)
@@ -1565,18 +1909,27 @@ class S2POTApp(ctk.CTk):
                 finfo["n_pages"] = f_meta.get("n_pages", 1)
                 finfo["orig_dpi"] = f_meta.get("max_dpi", 300)
                 finfo["orig_cmode"] = f_meta.get("color_mode")
-                finfo["total_chars"] = f_meta.get("total_chars", 0)
+                if f_meta.get("total_chars") is not None:
+                    finfo["total_chars"] = f_meta.get("total_chars", 0)
+                if f_meta.get("confidence") is not None:
+                    finfo["confidence"] = f_meta.get("confidence")
+                if f_meta.get("min_page_confidence") is not None:
+                    finfo["min_page_confidence"] = f_meta.get("min_page_confidence")
+                if f_meta.get("low_conf_pages") is not None:
+                    finfo["low_conf_pages"] = f_meta.get("low_conf_pages", 0)
                 self.item_to_info[item_id] = finfo
 
                 # Pre-insert all page rows immediately so expanding the node is 100% instantaneous (0ms)
                 for child in self.tree.get_children(item_id):
                     if child in self.item_to_info:
                         del self.item_to_info[child]
+                    if child in self.item_to_filepath:
+                        del self.item_to_filepath[child]
                     self.tree.delete(child)
 
                 for p_idx, pinfo in enumerate(f_meta.get("pages", [])):
                     pidx = pinfo.get("page_idx", p_idx)
-                    ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx)
+                    ptune = get_effective_file_tuning(self.folder_tuning, fname, page_idx=pidx, default_dpi=ui_dpi)
                     cinfo = {
                         "type": "page",
                         "filepath": fpath,
@@ -1585,16 +1938,16 @@ class S2POTApp(ctk.CTk):
                         "width": pinfo.get("width"),
                         "height": pinfo.get("height"),
                         "chars": pinfo.get("chars"),
-                        "orig_dpi": pinfo.get("dpi"),
-                        "orig_cmode": pinfo.get("color_mode"),
-                        "target_dpi": ptune.get("target_dpi"),
-                        "target_cmode": ptune.get("color_mode"),
-                        "status": "",
-                        "elapsed": 0.0
+                        "confidence": pinfo.get("confidence"),
+                        "orig_dpi": pinfo.get("dpi") or pinfo.get("orig_dpi"),
+                        "orig_cmode": pinfo.get("color_mode") or pinfo.get("orig_cmode"),
+                        "target_dpi": pinfo.get("target_dpi") or ptune.get("target_dpi"),
+                        "target_cmode": pinfo.get("target_cmode") or ptune.get("color_mode"),
+                        "status": pinfo.get("status", ""),
+                        "elapsed": pinfo.get("elapsed", 0.0)
                     }
-                    page_label = f"   ├── 📄 {self._tr('tree_item_page').format(idx=pidx + 1)}"
+                    _, ptag, page_label = self._get_page_conf_badge_tag_and_label(cinfo, p_idx)
                     child_vals = self._format_page_row_values(cinfo)
-                    ptag = "page_even" if p_idx % 2 == 0 else "page_odd"
                     child_id = self.tree.insert(item_id, "end", text=page_label, values=child_vals, tags=(ptag,))
                     self.item_to_filepath[child_id] = fpath
                     self.item_to_info[child_id] = cinfo
@@ -1604,6 +1957,30 @@ class S2POTApp(ctk.CTk):
         self._refresh_all_row_displays()
         if hasattr(self, "_update_gridlines_fn"):
             self.after(50, self._update_gridlines_fn)
+        if self.results_window is not None and self.results_window.winfo_exists():
+            self.results_window.refresh_results()
+
+    def _find_file_item_id(self, filepath=None, filename=None):
+        """Reliably finds the tree item_id for a file by exact path, normalized path, or basename."""
+        if filepath and filepath in self.file_items:
+            return self.file_items[filepath], filepath
+
+        if filepath:
+            norm_target = os.path.normcase(os.path.normpath(filepath))
+            for k, iid in self.file_items.items():
+                if os.path.normcase(os.path.normpath(k)) == norm_target:
+                    return iid, k
+
+        target_name = os.path.basename(filepath) if filepath else filename
+        if target_name:
+            target_lower = target_name.lower()
+            target_no_ext = os.path.splitext(target_lower)[0]
+            for k, iid in self.file_items.items():
+                bname = os.path.basename(k).lower()
+                if bname == target_lower or os.path.splitext(bname)[0] == target_no_ext:
+                    return iid, k
+
+        return None, filepath
 
     def _check_conditional_controls(self):
         """Enforces conditional UI rules for Document Subfolders and Data Destination folder."""
@@ -1640,11 +2017,23 @@ class S2POTApp(ctk.CTk):
             self.var_subfolders.set(False)
 
     def _on_table_select(self, event):
-        """Updates selection badge when user selects rows in the table."""
+        """Updates selection badge and 'Ver Páginas' button state when user selects rows in the table."""
         selected_items = self.tree.selection()
         n_selected = len(selected_items)
         n_total = len(self.found_files)
         self.lbl_selected_badge.configure(text=self._tr("selected_badge").format(sel=n_selected, tot=n_total))
+
+        can_tune = False
+        for iid in selected_items:
+            info = self.item_to_info.get(iid)
+            if info and info.get("type") in ("file", "page") and info.get("filepath") and os.path.exists(info["filepath"]):
+                can_tune = True
+                break
+
+        if can_tune:
+            self.btn_tune_page.configure(state="normal", fg_color="#6c3483", hover_color="#512e5f")
+        else:
+            self.btn_tune_page.configure(state="disabled", fg_color="gray50")
 
     def _sort_table(self, col):
         """Sorts the table columns in ascending or descending order."""
@@ -1760,19 +2149,30 @@ class S2POTApp(ctk.CTk):
                     export_options=export_opts,
                     enable_auto_deskew=self.var_deskew.get(),
                     target_dpi=dpi_val,
-                    progress_callback=self._update_progress,
-                    file_complete_callback=self._on_file_complete,
+                    doc_type="handwritten" if self.var_handwritten.get() else "printed",
+                    progress_callback=lambda cf, tf, fn, cp, tp, m: self.after(0, self._update_progress, cf, tf, fn, cp, tp, m),
+                    file_complete_callback=lambda fp, rec: self.after(0, self._on_file_complete, fp, rec),
                     abort_check_fn=lambda: self.abort_requested
                 )
-                self.after(0, lambda: messagebox.showinfo("Completed", f"Batch processing finished for {len(target_files)} file(s)!"))
+                self.after(0, self._on_batch_complete, len(target_files))
             except InterruptedError:
                 self.after(0, self._handle_interrupted_status, target_files)
             except Exception as e:
-                self.after(0, lambda: messagebox.showerror("Error", f"Error during processing: {e}"))
+                self.after(0, lambda err=e: messagebox.showerror("Error", f"Error during processing: {err}"))
             finally:
                 self.after(0, self._reset_process_ui)
 
         threading.Thread(target=run_thread, daemon=True).start()
+
+    def _on_batch_complete(self, processed_count):
+        self._refresh_all_row_displays()
+        if self.results_window is not None and self.results_window.winfo_exists():
+            try:
+                self.results_window.refresh_results()
+            except Exception:
+                pass
+        self.update_idletasks()
+        messagebox.showinfo("Completed", f"Batch processing finished for {processed_count} file(s)!")
 
     def _archive_conflicting_files(self, conflicting_files):
         """Archives existing conflicting target files into a timestamped 'Archive_YYYYMMDD_HHMMSS' subfolder."""
@@ -1795,12 +2195,13 @@ class S2POTApp(ctk.CTk):
     def _handle_interrupted_status(self, target_files):
         """Sets status of current and remaining target files to INTERRUPTED when aborted."""
         for fpath in target_files:
-            if fpath in self.file_items:
-                item_id = self.file_items[fpath]
+            item_id, _ = self._find_file_item_id(filepath=fpath)
+            if item_id:
                 info = self.item_to_info.get(item_id)
                 if info and info.get("status") in ["processing", ""]:
                     info["status"] = "interrupted"
                     self.tree.item(item_id, values=self._format_file_row_values(info))
+        self.update_idletasks()
         messagebox.showwarning("Interrupted", "Processing was interrupted by user.")
 
     def _abort_batch_process(self):
@@ -1814,36 +2215,168 @@ class S2POTApp(ctk.CTk):
         self.progress.set(1.0)
 
     def _update_progress(self, curr_file, tot_files, filename, curr_page, tot_pages, msg):
-        pct = (curr_file - 1 + (curr_page / float(max(1, tot_pages)))) / float(tot_files)
+        pct = (curr_file - 1 + (curr_page / float(max(1, tot_pages)))) / float(max(1, tot_files))
         self.progress.set(pct)
 
-        filepath = os.path.join(self.input_entry.get().strip(), filename)
-        self.current_processing_file = filepath
-        if filepath in self.file_items:
-            item_id = self.file_items[filepath]
+        in_dir = (self.input_entry.get().strip() or self.input_dir or "").strip('"\'')
+        filepath = os.path.join(in_dir, filename) if in_dir else filename
+        item_id, real_fpath = self._find_file_item_id(filepath=filepath, filename=filename)
+        self.current_processing_file = real_fpath
+
+        if item_id:
             info = self.item_to_info.get(item_id)
             if info:
                 info["status"] = "processing"
                 info["curr_page"] = curr_page
                 info["tot_pages"] = tot_pages
+                info["n_pages"] = tot_pages
                 self.tree.item(item_id, values=self._format_file_row_values(info))
 
+            for child_id in self.tree.get_children(item_id):
+                cinfo = self.item_to_info.get(child_id)
+                if not cinfo or cinfo.get("type") != "page":
+                    continue
+                pidx = cinfo.get("page_idx", 0)
+                if pidx == curr_page - 1:
+                    cinfo["status"] = "processing"
+                    self.tree.item(child_id, values=self._format_page_row_values(cinfo))
+                elif pidx < curr_page - 1 and cinfo.get("status") == "processing":
+                    cinfo["status"] = "done"
+                    self.tree.item(child_id, values=self._format_page_row_values(cinfo))
+
+        self.update_idletasks()
+
     def _on_file_complete(self, filepath, record):
-        if filepath in self.file_items:
-            item_id = self.file_items[filepath]
-            info = self.item_to_info.get(item_id)
-            if info:
-                info["status"] = "done"
-                info["n_pages"] = record.get("pages", info.get("n_pages", 1))
-                info["total_chars"] = record.get("total_chars", info.get("total_chars"))
-                info["elapsed"] = record.get("duration_sec", 0.0)
-                comp_pdf_path = record.get("output_pdf_compressed") or record.get("output_pdf")
-                if comp_pdf_path and os.path.exists(comp_pdf_path):
-                    try:
-                        info["comp_size_mb"] = os.path.getsize(comp_pdf_path) / (1024 * 1024)
-                    except Exception:
-                        pass
-                self.tree.item(item_id, values=self._format_file_row_values(info))
+        item_id, real_fpath = self._find_file_item_id(filepath=filepath, filename=record.get("filename"))
+        if not item_id:
+            return
+
+        info = self.item_to_info.get(item_id)
+        if info:
+            info["status"] = "done"
+            info["n_pages"] = record.get("pages", info.get("n_pages", 1))
+            info["total_chars"] = record.get("total_chars", 0)
+            info["confidence"] = record.get("confidence")
+            info["min_page_confidence"] = record.get("min_page_confidence")
+            info["low_conf_pages"] = record.get("low_conf_pages", 0)
+            info["elapsed"] = record.get("duration_sec", 0.0)
+            if record.get("orig_dpi"):
+                info["orig_dpi"] = record["orig_dpi"]
+            if record.get("orig_cmode"):
+                info["orig_cmode"] = record["orig_cmode"]
+            if record.get("target_dpi"):
+                info["target_dpi"] = record["target_dpi"]
+            if record.get("target_cmode"):
+                info["target_cmode"] = record["target_cmode"]
+
+            comp_pdf_path = record.get("output_pdf_compressed") or record.get("output_pdf") or record.get("output_primary_path")
+            if comp_pdf_path and os.path.exists(comp_pdf_path):
+                try:
+                    info["comp_size_mb"] = os.path.getsize(comp_pdf_path) / (1024 * 1024)
+                except Exception:
+                    info["comp_size_mb"] = record.get("pdf_size_mb")
+            elif record.get("pdf_size_mb") is not None and record.get("pdf_size_mb") > 0:
+                info["comp_size_mb"] = record.get("pdf_size_mb")
+
+            try:
+                f_idx = list(self.tree.get_children("")).index(item_id)
+            except Exception:
+                f_idx = 0
+            _, file_tag = self._get_file_conf_badge_and_tag(info, f_idx)
+            self.tree.item(item_id, values=self._format_file_row_values(info), tags=(file_tag,))
+
+        # Update page child rows in the tree with processed page metrics
+        pages_info = record.get("pages_info", [])
+        if pages_info:
+            fname = os.path.basename(real_fpath) if real_fpath else record.get("filename", "")
+            for child in self.tree.get_children(item_id):
+                if child in self.item_to_info:
+                    del self.item_to_info[child]
+                if child in self.item_to_filepath:
+                    del self.item_to_filepath[child]
+                self.tree.delete(child)
+
+            meta_pages = []
+            for p_idx, pinfo in enumerate(pages_info):
+                pidx = pinfo.get("page_idx", p_idx)
+                cinfo = {
+                    "type": "page",
+                    "filepath": real_fpath,
+                    "filename": fname,
+                    "page_idx": pidx,
+                    "width": pinfo.get("width"),
+                    "height": pinfo.get("height"),
+                    "chars": pinfo.get("chars", 0),
+                    "confidence": pinfo.get("confidence"),
+                    "orig_dpi": pinfo.get("orig_dpi"),
+                    "orig_cmode": pinfo.get("orig_cmode"),
+                    "target_dpi": pinfo.get("target_dpi"),
+                    "target_cmode": pinfo.get("target_cmode"),
+                    "status": "done",
+                    "elapsed": pinfo.get("elapsed", 0.0)
+                }
+                _, ptag, page_label = self._get_page_conf_badge_tag_and_label(cinfo, p_idx)
+                child_vals = self._format_page_row_values(cinfo)
+                child_id = self.tree.insert(item_id, "end", text=page_label, values=child_vals, tags=(ptag,))
+                self.item_to_filepath[child_id] = real_fpath
+                self.item_to_info[child_id] = cinfo
+
+                meta_pages.append({
+                    "page_idx": pidx,
+                    "width": pinfo.get("width"),
+                    "height": pinfo.get("height"),
+                    "dpi": pinfo.get("orig_dpi"),
+                    "color_mode": pinfo.get("orig_cmode"),
+                    "target_dpi": pinfo.get("target_dpi"),
+                    "target_cmode": pinfo.get("target_cmode"),
+                    "chars": pinfo.get("chars", 0),
+                    "confidence": pinfo.get("confidence"),
+                    "status": "done",
+                    "elapsed": pinfo.get("elapsed", 0.0)
+                })
+
+            if real_fpath:
+                self.loaded_pages.add(real_fpath)
+
+            # Persist updated metadata to folder_metadata and s2pot_metadata.json
+            in_dir = os.path.normpath((self.input_entry.get().strip() or self.input_dir or "").strip('"\''))
+            if in_dir and os.path.exists(in_dir) and fname:
+                if not self.folder_metadata or not isinstance(self.folder_metadata, dict):
+                    self.folder_metadata = {
+                        "version": "1.0",
+                        "folder": in_dir,
+                        "updated_at": "",
+                        "files": {}
+                    }
+                files_dict = self.folder_metadata.setdefault("files", {})
+                files_dict[fname] = {
+                    "filename": fname,
+                    "format": info.get("format", "") if info else "",
+                    "size_mb": round(info.get("size_mb", 0.0), 2) if info else 0.0,
+                    "comp_size_mb": info.get("comp_size_mb") if info else None,
+                    "n_pages": info.get("n_pages", len(meta_pages)) if info else len(meta_pages),
+                    "max_dpi": info.get("orig_dpi", 300) if info else 300,
+                    "color_mode": info.get("orig_cmode", "color") if info else "color",
+                    "target_dpi": info.get("target_dpi") if info else None,
+                    "target_cmode": info.get("target_cmode") if info else None,
+                    "total_chars": info.get("total_chars", 0) if info else 0,
+                    "confidence": info.get("confidence") if info else None,
+                    "min_page_confidence": info.get("min_page_confidence") if info else None,
+                    "low_conf_pages": info.get("low_conf_pages", 0) if info else 0,
+                    "status": "done",
+                    "elapsed": info.get("elapsed", 0.0) if info else 0.0,
+                    "pages": meta_pages
+                }
+                self.folder_metadata["updated_at"] = datetime.now().isoformat()
+                save_folder_metadata(in_dir, self.folder_metadata)
+
+        if self.results_window is not None and self.results_window.winfo_exists():
+            try:
+                self.results_window.refresh_results()
+            except Exception:
+                pass
+
+        self.update_idletasks()
 
 
 def launch_gui():

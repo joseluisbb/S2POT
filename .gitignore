@@ -13,6 +13,8 @@ dataset/
 input/
 output/
 scratch/
+models/trocr_base/
+*.onnx.part
 
 # Environments & IDEs
 .venv/

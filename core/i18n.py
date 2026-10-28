@@ -1596,6 +1596,15 @@ TRANSLATIONS = {
         "ru": "Рукописный курсив (TrOCR)",
         "ar": "خط يد متصل (TrOCR)"
     },
+    "tooltip_doc_type_handwritten": {
+        "pt_PT": "Ativar apenas para caligrafia manuscrita contínua. Para texto impresso, livros ou dactilografado, deixe desmarcado (usará RapidOCR).",
+        "en": "Enable only for continuous cursive handwriting. For printed, books or typewritten text, keep disabled (will use RapidOCR).",
+        "es": "Activar solo para caligrafía manuscrita. Para texto impreso o mecanografiado, desactive (usará RapidOCR).",
+        "fr": "Activer uniquement pour l'écriture manuscrite. Pour le texte imprimé ou dactylographié, désactivez (utilisera RapidOCR).",
+        "zh": "仅对手写体启用。对于印刷体或打字机文本，请关闭以使用RapidOCR。",
+        "ru": "Включать только для рукописного текста. Для печатного текста отключите (RapidOCR).",
+        "ar": "تفعيل فقط للمخطوطات وخط اليد. للنصوص المطبوعة، قم بإلغاء التفعيل."
+    },
     "lite_btn_cancel": {
         "pt_PT": "⏹ Cancelar Processamento",
         "en": "⏹ Cancel Processing",

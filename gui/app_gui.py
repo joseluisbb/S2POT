@@ -645,6 +645,7 @@ class S2POTApp(ctk.CTk):
             command=self._on_handwritten_toggle
         )
         self.chk_handwritten.pack(anchor="w", padx=8, pady=(2, 6))
+        ToolTip(self.chk_handwritten, "tooltip_doc_type_handwritten", self)
 
         f_btns = ctk.CTkFrame(self.box3, fg_color="transparent")
         f_btns.pack(fill="x", padx=10, pady=(2, 6))

@@ -18,6 +18,7 @@ import customtkinter as ctk
 from core.i18n import get_text, LANGUAGES
 from core.config import load_config, save_config, APP_VERSION
 from core.lite_pipeline import inspect_lite_file, process_lite_file, SUPPORTED_EXTENSIONS
+from gui.tooltip import ToolTip
 
 # Windows Native APIs setup
 GWLP_WNDPROC = -4
@@ -377,6 +378,7 @@ class S2POTLiteApp(ctk.CTk):
             command=self._on_handwritten_checkbox_toggle
         )
         self.chk_handwritten.pack(side="left")
+        ToolTip(self.chk_handwritten, "tooltip_doc_type_handwritten", self)
 
         # === SECTION B: OUTPUT FOLDER WITH VISIBLE FILES ===
         out_box = ctk.CTkFrame(self.main_scroll, fg_color="transparent")
